@@ -14,19 +14,19 @@ public:
     IntegerVector<neqs+1> csr_row_count;
 
     VodeSystem() {
-        csr_col_index[0] = 1;
-        csr_col_index[1] = 2;
-        csr_col_index[2] = 3;
-        csr_col_index[3] = 1;
-        csr_col_index[4] = 2;
-        csr_col_index[5] = 3;
-        csr_col_index[6] = 2;
-        csr_col_index[7] = 3;
+        csr_col_index[0] = 0;
+        csr_col_index[1] = 1;
+        csr_col_index[2] = 2;
+        csr_col_index[3] = 0;
+        csr_col_index[4] = 1;
+        csr_col_index[5] = 2;
+        csr_col_index[6] = 1;
+        csr_col_index[7] = 2;
 
-        csr_row_count[0] = 1;
-        csr_row_count[1] = 4;
-        csr_row_count[2] = 7;
-        csr_row_count[3] = 9;        
+        csr_row_count[0] = 0;
+        csr_row_count[1] = 3;
+        csr_row_count[2] = 6;
+        csr_row_count[3] = 8;
     }
 
     __host__ __device__
