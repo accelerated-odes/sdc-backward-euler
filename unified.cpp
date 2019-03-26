@@ -2,8 +2,7 @@
 
 void* UnifiedMemoryClass::operator new(size_t size) {
     void* vp;
-    cudaMallocManaged(&vp, size);
-    cudaError_t cuda_status = cudaDeviceSynchronize();
+    cudaError_t cuda_status = cudaMallocManaged(&vp, size);
     if (cuda_status != cudaSuccess)
         std::cout << cudaGetErrorString(cuda_status) << std::endl;
     assert(cuda_status == cudaSuccess);
