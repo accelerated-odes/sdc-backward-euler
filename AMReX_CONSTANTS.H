@@ -1,0 +1,33 @@
+#ifndef BL_CONSTANTS_H
+#define BL_CONSTANTS_H
+
+#include <AMReX_REAL.H>
+
+#define zero    0.0
+#define one     1.0
+#define two     2.0
+#define three   3.0
+#define four    4.0
+#define five    5.0
+#define six     6.0
+#define seven   7.0
+#define eight   8.0
+#define nine    9.0
+#define ten     10.0
+#define twelve  12.0
+#define fifteen 15.0
+#define sixteen 16.0
+#define twenty  20.0
+#define seventy 70.0
+#define ninety  90.0
+#define tenth   0.1
+#define eighth  0.125
+#define sixth   0.16666666666666667
+#define fifth   0.2
+#define fourth  0.25
+#define third   0.33333333333333333
+#define half    0.5
+#define two3rd  0.66666666666666667
+#define Pi      3.1415926535897932
+
+#endif /*BL_CONSTANTS_H*/

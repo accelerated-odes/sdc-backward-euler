@@ -1,0 +1,5 @@
+# sources for SDC ODE solver
+
+CEXE_sources += main.cpp
+CEXE_sources += unified.cpp
+
