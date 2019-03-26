@@ -1,5 +1,6 @@
 #ifndef _REAL_SPARSE_MATRIX_H
 #define _REAL_SPARSE_MATRIX_H
+#include <iostream>
 #include <cassert>
 #include <cmath>
 #include "AMReX_REAL.H"
@@ -28,6 +29,19 @@ public:
         col_index = input_col_index;
         row_count = input_row_count;
     }
+
+  void print_layout() {
+    std::cout << "col index: ";
+    for (auto& x : col_index) {
+      std::cout << x << " ";
+    }
+    std::cout << std::endl << std::endl;
+    std::cout << "row count: ";
+    for (auto& x : row_count) {
+      std::cout << x << " ";
+    }
+    std::cout << std::endl << std::endl;
+  }
 
     __host__ __device__
     Real* begin() {
