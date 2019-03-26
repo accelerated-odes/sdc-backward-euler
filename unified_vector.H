@@ -13,10 +13,9 @@ public:
     size_t allocated_size;
     T* data_ptr;
 
-    UnifiedVector(size_t create_size = 0) {
+    UnifiedVector(size_t create_size = 1) {
         cudaError_t cuda_status;
-        cudaMallocManaged(&data_ptr, sizeof(T)*create_size);
-        cuda_status = cudaDeviceSynchronize();
+        cuda_status = cudaMallocManaged(&data_ptr, sizeof(T)*create_size);
         assert(cuda_status == cudaSuccess);
         allocated_size = create_size;
         filled_size = 0;
