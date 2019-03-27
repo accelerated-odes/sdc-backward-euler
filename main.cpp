@@ -24,14 +24,15 @@ int main(int argc, char* argv[]) {
 			    tolerance, maximum_newton_iters, fail_if_maximum_newton);
     }
 
-    std::cout << "Initial Conditions -----------------" << std::endl;
+    std::cout << std::endl << "Initial Conditions -----------------" << std::endl;
     sdc_integrator.print_states();
 
     sdc_integrator.integrate();
 
-    std::cout << "Final Conditions -------------------" << std::endl;
+    std::cout << std::endl << "Final Conditions -------------------" << std::endl;
     sdc_integrator.print_states();
 
+    std::cout << std::endl << "Final Integration States -------------------" << std::endl;    
     size_t i = 0;
     for (auto& sdc_state : sdc_integrator) {
       std::cout << "system " << i << std::endl;
