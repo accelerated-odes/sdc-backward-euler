@@ -25,7 +25,7 @@ public:
         return begin();
     }
 
-    void print() {
+    virtual void print() {
         size_t i = 0;
         for (const auto& x : (*this)) {
             std::cout << x;

@@ -1,5 +1,7 @@
 #ifndef _REAL_VECTOR_H
 #define _REAL_VECTOR_H
+#include <iostream>
+#include <iomanip>
 #include <cassert>
 #include <cmath>
 #include "AMReX_REAL.H"
@@ -13,6 +15,16 @@ public:
     using MathVector<Real,N>::operator=;
     using MathVector<Real,N>::begin;
     using MathVector<Real,N>::end;
+
+    virtual void print() {
+        size_t i = 0;
+	//std::cout << std::scientific << std::setprecision(6);
+        for (const auto& x : (*this)) {
+            std::cout << x;
+            if (i < N-1) std::cout << " ";
+            i++;
+        }
+    }
     
     __host__ __device__
     RealVector<N>& abs() {
