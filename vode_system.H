@@ -32,16 +32,16 @@ public:
     __host__ __device__
     static void evaluate(Real time, RealVector<neqs>& y, RealVector<neqs>& rhs) {
         rhs[0] = -0.04 * y[0] + 1.e4 * y[1] * y[2];
-        rhs[1] =  0.04 * y[0] - 1.e4 * y[1] * y[2] - 3.e7 * powf(y[1], two);
-        rhs[2] =  3.e7 * powf(y[1], two);
+        rhs[1] =  0.04 * y[0] - 1.e4 * y[1] * y[2] - 3.e7 * y[1] * y[1];
+        rhs[2] =  3.e7 * y[1] * y[1];
     }    
 
     __host__ __device__
     static void evaluate(Real time, RealVector<neqs>& y, RealVector<neqs>& rhs,
                          RealSparseMatrix<neqs,nnz>& jac) {
         rhs[0] = -0.04 * y[0] + 1.e4 * y[1] * y[2];
-        rhs[1] =  0.04 * y[0] - 1.e4 * y[1] * y[2] - 3.e7 * powf(y[1], two);
-        rhs[2] =  3.e7 * powf(y[1], two);
+        rhs[1] =  0.04 * y[0] - 1.e4 * y[1] * y[2] - 3.e7 * y[1] * y[1];
+        rhs[2] =  3.e7 * y[1] * y[1];
 
         jac.ij(0,0) = -0.04e0;
         jac.ij(0,1) =  1.e4 * y[2];
