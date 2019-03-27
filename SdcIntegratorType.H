@@ -329,6 +329,8 @@ public:
       time_previous = time_nodes[number_nodes-1];
       y_old[0] = y_new[number_nodes-1];
       f_old[0] = f_new[number_nodes-1];
+      y_new[0] = y_old[0];
+      f_new[0] = f_old[0];
     } else {
       // Evaluate the system at y_old and set y_old and f_old for nodes
       SystemClass::evaluate(time_nodes[0], y_old[0], f_old[0]);
