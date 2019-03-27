@@ -19,15 +19,15 @@ void states_to_solver_kernel(Real* solver_matrix,
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (tid < size) {
-      Real* system_matrix = batched_matrices[tid];
-      for (size_t i = 0; i < nnz; i++) {
-          solver_matrix[tid * nnz + i] = system_matrix[i];
-      }
+    Real* system_matrix = batched_matrices[tid];
+    for (size_t i = 0; i < nnz; i++) {
+      solver_matrix[tid * nnz + i] = system_matrix[i];
+    }
 
-      Real* system_vector = batched_vectors[tid];
-      for (size_t i = 0; i < neqs; i++) {
-          solver_vector[tid * neqs + i] = system_vector[i];
-      }
+    Real* system_vector = batched_vectors[tid];
+    for (size_t i = 0; i < neqs; i++) {
+      solver_vector[tid * neqs + i] = system_vector[i];
+    }
   }
 }
 
@@ -38,162 +38,162 @@ void solver_to_states_kernel(Real* solver_solution,
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (tid < size) {
-      Real* system_solution = batched_solutions[tid];
-      for (size_t i = 0; i < neqs; i++) {
-          system_solution[i] = solver_solution[tid * neqs + i];
-      }
+    Real* system_solution = batched_solutions[tid];
+    for (size_t i = 0; i < neqs; i++) {
+      system_solution[i] = solver_solution[tid * neqs + i];
+    }
   }
 }
 
 template<class SystemClass> class SdcIntegrator : public UnifiedMemoryClass {
-    size_t number_systems;
-    static const size_t order = 4;
-    std::vector<SdcIntegratorType<SystemClass, order>*> states;
+  size_t number_systems;
+  static const size_t order = 4;
+  std::vector<SdcIntegratorType<SystemClass, order>*> states;
 
-    SystemClass ode_system;
+  SystemClass ode_system;
 
-    UnifiedVector<Real*> batched_matrices;
-    UnifiedVector<Real*> batched_vectors;
-    UnifiedVector<size_t> batched_indices;
-    
-    Real* solver_matrix;
-    Real* solver_vector;
-    Real* solver_solution;
+  UnifiedVector<Real*> batched_matrices;
+  UnifiedVector<Real*> batched_vectors;
+  UnifiedVector<size_t> batched_indices;
+
+  Real* solver_matrix;
+  Real* solver_vector;
+  Real* solver_solution;
 
 
-    void states_to_solver() {
-        cudaError_t cuda_status = cudaSuccess;
+  void states_to_solver() {
+    cudaError_t cuda_status = cudaSuccess;
 
-        int size = batched_indices.size();
-        int nThreads = min(32, size);
-        int nBlocks = static_cast<int>(ceil(((double) size)/
-                                              ((double) nThreads)));
-        
-        states_to_solver_kernel<<<nBlocks, nThreads>>>(solver_matrix,
-                                                       batched_matrices.dataPtr(),
-                                                       solver_vector,
-                                                       batched_vectors.dataPtr(),
-                                                       size,
-                                                       SystemClass::neqs,
-                                                       SystemClass::nnz);
-    
-        cuda_status = cudaDeviceSynchronize();
-        assert(cuda_status == cudaSuccess);
+    int size = batched_indices.size();
+    int nThreads = min(32, size);
+    int nBlocks = static_cast<int>(ceil(((double) size)/
+					((double) nThreads)));
+
+    states_to_solver_kernel<<<nBlocks, nThreads>>>(solver_matrix,
+						   batched_matrices.dataPtr(),
+						   solver_vector,
+						   batched_vectors.dataPtr(),
+						   size,
+						   SystemClass::neqs,
+						   SystemClass::nnz);
+
+    cuda_status = cudaDeviceSynchronize();
+    assert(cuda_status == cudaSuccess);
+  }
+
+  void solver_to_states() {
+    cudaError_t cuda_status = cudaSuccess;
+
+    int size = number_systems;
+    int nThreads = min(32, size);
+    int nBlocks = static_cast<int>(ceil(((double) size)/
+					((double) nThreads)));
+
+    solver_to_states_kernel<<<nBlocks, nThreads>>>(solver_solution,
+						   batched_vectors.dataPtr(),
+						   size,
+						   SystemClass::neqs);
+
+    cuda_status = cudaDeviceSynchronize();
+    assert(cuda_status == cudaSuccess);
+  }
+
+  void initialize() {
+    for (size_t i = 0; i < number_systems; i++) {
+      SdcIntegratorType<SystemClass, order>* sdc_state;
+      sdc_state = new SdcIntegratorType<SystemClass, order>(ode_system);
+      states.push_back(sdc_state);
     }
+  }
 
-    void solver_to_states() {
-        cudaError_t cuda_status = cudaSuccess;
+  void linear_solve() {
+    // Construct and solve the linear system A*x = b
+    // for each unfinished state. Put the answer x into f_new.
+    size_t number_unfinished = batched_indices.size();
 
-        int size = number_systems;
-        int nThreads = min(32, size);
-        int nBlocks = static_cast<int>(ceil(((double) size)/
-                                              ((double) nThreads)));
+    SparseLinearSolver<SystemClass> linear_solver(number_unfinished, ode_system);
 
-        solver_to_states_kernel<<<nBlocks, nThreads>>>(solver_solution,
-                                                       batched_vectors.dataPtr(),
-                                                       size,
-                                                       SystemClass::neqs);
+    solver_matrix = static_cast<Real*>(linear_solver.get_device_matrix());
+    solver_vector = static_cast<Real*>(linear_solver.get_device_vector());
+    solver_solution = static_cast<Real*>(linear_solver.get_device_solution());
 
-        cuda_status = cudaDeviceSynchronize();
-        assert(cuda_status == cudaSuccess);
-    }
-
-    void initialize() {
-        for (size_t i = 0; i < number_systems; i++) {
-            SdcIntegratorType<SystemClass, order>* sdc_state;
-            sdc_state = new SdcIntegratorType<SystemClass, order>(ode_system);
-            states.push_back(sdc_state);
-        }
-    }
-
-    void linear_solve() {
-        // Construct and solve the linear system A*x = b
-        // for each unfinished state. Put the answer x into f_new.
-        size_t number_unfinished = batched_indices.size();
-
-        SparseLinearSolver<SystemClass> linear_solver(number_unfinished, ode_system);
-
-        solver_matrix = static_cast<Real*>(linear_solver.get_device_matrix());
-        solver_vector = static_cast<Real*>(linear_solver.get_device_vector());
-        solver_solution = static_cast<Real*>(linear_solver.get_device_solution());
-
-        states_to_solver();
-        linear_solver.solve();
-        solver_to_states();
-    }    
+    states_to_solver();
+    linear_solver.solve();
+    solver_to_states();
+  }
 
 public:
 
-    SdcIntegrator(size_t nsystems) {
-        number_systems = nsystems;
-        states.resize(0);
-        batched_matrices.resize(0);
-        batched_vectors.resize(0);
-        batched_indices.resize(0);
-        initialize();
-        std::cout << "sdc integrator initialized" << std::endl;
+  SdcIntegrator(size_t nsystems) {
+    number_systems = nsystems;
+    states.resize(0);
+    batched_matrices.resize(0);
+    batched_vectors.resize(0);
+    batched_indices.resize(0);
+    initialize();
+    std::cout << "sdc integrator initialized" << std::endl;
+  }
+
+  ~SdcIntegrator() {}
+
+  decltype(states.begin()) begin() {
+    return states.begin();
+  }
+
+  decltype(states.begin()) end() {
+    return states.end();
+  }
+
+  void integrate() {
+    bool some_unfinished = true;
+
+    batched_matrices.resize(0);
+    batched_vectors.resize(0);
+    batched_indices.resize(0);
+
+    while (some_unfinished) {
+      some_unfinished = false;
+
+      // Prepare
+      size_t istate = 0;
+      for (auto& sdc_state : states) {
+	if (!sdc_state->is_finished()) {
+	  sdc_state->prepare();
+	  some_unfinished = true;
+	  batched_matrices.push_back(sdc_state->get_matrix());
+	  batched_vectors.push_back(sdc_state->get_vector());
+	  batched_indices.push_back(istate);
+	}
+	istate++;
+      }
+
+      if (!some_unfinished) break;
+
+      // Solve linear system
+      linear_solve();
+
+      // Update
+      for (auto& sdc_state : states) {
+	if (!sdc_state->is_finished()) {
+	  sdc_state->update();
+	}
+      }
     }
+  }
 
-    ~SdcIntegrator() {}
-
-    decltype(states.begin()) begin() {
-      return states.begin();
+  void print_states() {
+    size_t istate = 0;
+    for (const auto& sdc_state : states) {
+      std::cout << "System no. " << istate << std::endl;
+      if (sdc_state->is_started()) {
+	std::cout << "time = " << sdc_state->get_current_time() << std::endl;
+	std::cout << "solution = "; sdc_state->get_current_solution().print(); std::cout << std::endl;
+      } else {
+	std::cout << "time = " << sdc_state->get_previous_time() << std::endl;
+	std::cout << "solution = "; sdc_state->get_previous_solution().print(); std::cout << std::endl;
+      }
+      istate++;
     }
-
-    decltype(states.begin()) end() {
-      return states.end();
-    }
-
-    void integrate() {
-        bool some_unfinished = true;
-        
-        batched_matrices.resize(0);
-        batched_vectors.resize(0);
-        batched_indices.resize(0);
-        
-        while (some_unfinished) {
-            some_unfinished = false;
-
-            // Prepare
-            size_t istate = 0;
-            for (auto& sdc_state : states) {
-                if (!sdc_state->is_finished()) {
-                    sdc_state->prepare();
-                    some_unfinished = true;
-                    batched_matrices.push_back(sdc_state->get_matrix());
-                    batched_vectors.push_back(sdc_state->get_vector());
-                    batched_indices.push_back(istate);
-                }
-                istate++;
-            }
-
-            if (!some_unfinished) break;
-
-            // Solve linear system
-            linear_solve();
-
-            // Update
-            for (auto& sdc_state : states) {
-                if (!sdc_state->is_finished()) {
-                    sdc_state->update();
-                }
-            }
-        }
-    }
-
-    void print_states() {
-        size_t istate = 0;
-        for (const auto& sdc_state : states) {
-            std::cout << "System no. " << istate << std::endl;
-	    if (sdc_state->is_started()) {
-                std::cout << "time = " << sdc_state->get_current_time() << std::endl;
-                std::cout << "solution = "; sdc_state->get_current_solution().print(); std::cout << std::endl;
-	    } else {
-                std::cout << "time = " << sdc_state->get_previous_time() << std::endl;
-                std::cout << "solution = "; sdc_state->get_previous_solution().print(); std::cout << std::endl;
-	    }
-            istate++;
-        }
-    }
+  }
 };
 #endif

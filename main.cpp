@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Initial Conditions -----------------" << std::endl;
     sdc_integrator.print_states();
-    
+
     sdc_integrator.integrate();
 
     std::cout << "Final Conditions -------------------" << std::endl;
@@ -38,6 +38,6 @@ int main(int argc, char* argv[]) {
       sdc_state->print();
       i++;
     }
-    
+
     return 0;
 }
