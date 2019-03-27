@@ -169,13 +169,8 @@ public:
     // and update integration state & status
 
     // We update y_new and update corrector error.
-
     y_new[node_counter] + y_delta;
-    std::cout << "ydelta_norm: " << y_delta.frobenius_norm() << std::endl;
-    std::cout << "ynew max norm: " << y_new[node_counter].max_norm() << std::endl;
     newton_error = y_delta.frobenius_norm()/(y_new[node_counter].max_norm() + small);
-    std::cout << "ydelta is: "; y_delta.print(); std::cout << std::endl;
-    std::cout << "newton error is: " << newton_error << std::endl;
     y_delta = 0.0;
   }
 
@@ -192,10 +187,7 @@ public:
 	// Check if we are finished with all SDC iterations
 	if (sdc_counter == order) {
 	  // Check if we have reached the stop time or max timesteps
-	  Real difft = fabs(time_nodes[number_nodes-1] - time_target);
-	  std::cout << "dt to end: " << difft << std::endl;
-	  std::cout << "small: " << small << std::endl;
-	  if (difft < 2.0*small) {
+	  if (fabs(time_nodes[number_nodes-1] - time_target) < 2.0*small) {
 	    // We have reached the stop time successfully
 	    new_status = SdcStatus::Completed;
 	  } else {
@@ -232,9 +224,6 @@ public:
   void setup_linear_system() {
     // Set up the linear system A*x = b to solve.
     // Puts A into j_new and puts b into y_delta.
-    std::cout << std::setprecision(7) << std::scientific;
-
-    std::cout << "f:"; f_new[node_counter].print(); std::cout << std::endl;
 
     // Form the matrix A:
     j_new * (time_nodes[node_counter-1] - time_nodes[node_counter]);
@@ -242,27 +231,12 @@ public:
       j_new.ij(i,i) += 1.0;
     }
 
-    std::cout << "A: ";
-    for (auto& x : j_new)
-      std::cout << x << " ";
-    std::cout << std::endl;
-
-    std::cout << "y_new_m1: "; y_new[node_counter-1].print(); std::cout << std::endl;
-    std::cout << "y_new_m: "; y_new[node_counter].print(); std::cout << std::endl;
-    std::cout << "f_old_m: "; f_old[node_counter].print(); std::cout << std::endl;
-    std::cout << "q_node: "; q_node.print(); std::cout << std::endl;
-
     // Form the vector b:
     for (size_t i = 0; i < SystemClass::neqs; i++) {
       y_delta[i] = y_new[node_counter-1][i] - y_new[node_counter][i];
-      if (i==0) std::cout << y_delta[i] << std::endl;
       y_delta[i] += (time_nodes[node_counter] - time_nodes[node_counter-1]) * (f_new[node_counter][i] - f_old[node_counter][i]);
-      if (i==0) std::cout << y_delta[i] << std::endl;
       y_delta[i] += q_node[i];
-      if (i==0) std::cout << y_delta[i] << std::endl;
     }
-
-    std::cout << "b: "; y_delta.print(); std::cout << std::endl;
   }
 
   bool is_finished() {

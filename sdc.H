@@ -181,7 +181,7 @@ public:
         }
     }
 
-    void print_state() {
+    void print_states() {
         size_t istate = 0;
         for (const auto& sdc_state : states) {
             std::cout << "System no. " << istate << std::endl;
