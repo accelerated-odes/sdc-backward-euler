@@ -17,14 +17,14 @@ template<class SystemClass> class SparseLinearSolver {
     // System
     int* matrices_csr_col_index_d;
     int* matrices_csr_row_count_d;
-    int* matrices_csr_col_index_h; //[SystemClass::sparse_jac_nnz];
-    int* matrices_csr_row_count_h; //[SystemClass::neqs+1];
+    int matrices_csr_col_index_h[SystemClass::nnz];
+    int matrices_csr_row_count_h[SystemClass::neqs+1];
     double* matrices_csr_values;
     double* system_x;
     double* system_b;
 
     int number_batched_systems;
-private:
+
     void create_linear_solver(size_t number_systems) {
         number_batched_systems = static_cast<int>(number_systems);
         
@@ -33,52 +33,30 @@ private:
         cusparseStatus_t cusparse_status = CUSPARSE_STATUS_SUCCESS;
 
         // Make handle for cuSolver
-#if VERBOSE_DEBUG
-        std::cout << "Creating cuSolver Handle" << std::endl;
-#endif
-
         cusolver_status = cusolverSpCreate(&cusolverHandle);
         assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
 
         // Create an info object
-#if VERBOSE_DEBUG
-        std::cout << "Creating info object" << std::endl;
-#endif
-
         cusolver_status = cusolverSpCreateCsrqrInfo(&info);
         assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
 
         // Setup Sparse system description
-#if VERBOSE_DEBUG
-        std::cout << "Creating Matrix Descriptor" << std::endl;
-#endif
-
         cusparse_status = cusparseCreateMatDescr(&system_description);
         assert(cusparse_status == CUSPARSE_STATUS_SUCCESS);
 
-#if VERBOSE_DEBUG
-        std::cout << "In Matrix Descriptor, setting Matrix Type" << std::endl;
-#endif
         cusparse_status = cusparseSetMatType(system_description, CUSPARSE_MATRIX_TYPE_GENERAL);
         assert(cusparse_status == CUSPARSE_STATUS_SUCCESS);
 
-#if VERBOSE_DEBUG
-        std::cout << "In Matrix Descriptor, setting Matrix Index Base" << std::endl;
-#endif
-        cusparse_status = cusparseSetMatIndexBase(system_description, CUSPARSE_INDEX_BASE_ONE);
+        cusparse_status = cusparseSetMatIndexBase(system_description, CUSPARSE_INDEX_BASE_ZERO);
         assert(cusparse_status == CUSPARSE_STATUS_SUCCESS);
-
-#if VERBOSE_DEBUG
-        std::cout << "Created CV_cuSolver_Mem object." << std::endl;
-#endif
 
         // analyze matrix system
         cusolver_status = CUSOLVER_STATUS_SUCCESS;
 
         cusolver_status = cusolverSpXcsrqrAnalysisBatched(cusolverHandle,
-                                                          SystemClass::neqs, // size per subsystem
-                                                          SystemClass::neqs, // size per subsystem
-                                                          SystemClass::nnz,
+							  SystemClass::neqs,
+							  SystemClass::neqs,
+							  SystemClass::nnz,
                                                           system_description,
                                                           matrices_csr_row_count_d,
                                                           matrices_csr_col_index_d,
@@ -86,9 +64,9 @@ private:
         assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
 
         cusolver_status = cusolverSpDcsrqrBufferInfoBatched(cusolverHandle,
-                                                            SystemClass::neqs, // size per subsystem
-                                                            SystemClass::neqs, // size per subsystem
-                                                            SystemClass::nnz,
+							    SystemClass::neqs,
+							    SystemClass::neqs,
+							    SystemClass::nnz,
                                                             system_description,
                                                             matrices_csr_values,
                                                             matrices_csr_row_count_d,
@@ -116,8 +94,10 @@ private:
         cuda_status = cudaFree(workspace);
         assert(cuda_status == cudaSuccess);
     }
+
 public:
-    SparseLinearSolver(size_t number_systems, const SystemClass& ode_system) {
+
+    SparseLinearSolver(size_t number_systems, SystemClass& ode_system) {
         // initialize batched matrix memory
         cudaError_t cuda_status = cudaSuccess;
 
@@ -134,14 +114,12 @@ public:
         assert(cuda_status == cudaSuccess);
 
         // initialize the CSR matrix data
-        IntegerVector<SystemClass::nnz> col_index = ode_system.csr_col_index;
         for (size_t i = 0; i < SystemClass::nnz; i++) {
-            matrices_csr_col_index_h[i] = col_index[i];
+	  matrices_csr_col_index_h[i] = ode_system.csr_col_index[i];
         }
 
-        IntegerVector<SystemClass::neqs+1> row_count = ode_system.csr_row_count;
         for (size_t i = 0; i < SystemClass::neqs+1; i++) {
-            matrices_csr_row_count_h[i] = row_count[i];
+	  matrices_csr_row_count_h[i] = ode_system.csr_row_count[i];
         }
 
         // Allocate device memory and copy system parameters from host
