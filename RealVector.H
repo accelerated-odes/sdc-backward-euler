@@ -81,6 +81,16 @@ public:
     }
 
     __host__ __device__
+    Real frobenius_norm() {
+        Real sum = zero;
+        for (size_t i = 0; i < N; i++) {
+            sum += pow((*this)[i], two);
+        }
+        sum = sqrt(sum);
+        return sum;
+    }
+
+    __host__ __device__
     Real min() {
         Real xmin = (*this)[0];
         for (auto& x : *this) {
