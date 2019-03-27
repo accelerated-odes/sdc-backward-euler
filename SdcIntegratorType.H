@@ -20,8 +20,6 @@ template<class SystemClass, size_t order> class SdcIntegratorType : public Unifi
   static const size_t number_nodes = order - 1;
   static const size_t maximum_steps = 1000000;
 
-public:
-
   SdcStatus status;
   size_t step_counter, sdc_counter, node_counter, newton_counter;
   size_t maximum_newton;
