@@ -29,7 +29,7 @@ public:
         size_t i = 0;
         for (const auto& x : (*this)) {
             std::cout << x;
-            if (i == N-1) std::cout << " ";
+            if (i < N-1) std::cout << " ";
             i++;
         }
     }
