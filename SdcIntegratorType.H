@@ -1,6 +1,7 @@
 #ifndef SDC_INTEGRATOR_TYPE_H
 #define SDC_INTEGRATOR_TYPE_H
-
+#include <iostream>
+#include "math.h"
 #include "AMReX_REAL.H"
 #include "RealVector.H"
 #include "RealSparseMatrix.H"
@@ -8,18 +9,26 @@
 
 enum class SdcStatus {Completed, Failed, StartTimestep, StartSDCIteration, StartNode, StartNewton};
 
+template<typename EnumClass> auto enum_class_integer(EnumClass const value) ->
+    typename std::underlying_type<EnumClass>::type {
+    return static_cast<typename std::underlying_type<EnumClass>::type>(value);
+}
+
 template<class SystemClass, size_t order> class SdcIntegratorType : public UnifiedMemoryClass {
     static const size_t number_nodes = order - 1;
     static const size_t maximum_steps = 1000000;
     static const size_t maximum_newton = 100;
+
+public:
     
     SdcStatus status;
     size_t step_counter, sdc_counter, node_counter, newton_counter;
     
     Real time_previous, time_target, time_step, newton_error, newton_tolerance, small;
     RealVector<number_nodes> time_nodes;
-    
-    RealVector<SystemClass::neqs> f_new, q_node;
+
+    RealVector<SystemClass::neqs> q_node, y_delta;  
+    RealVector<SystemClass::neqs> f_new[number_nodes];
     RealVector<SystemClass::neqs> f_old[number_nodes];
     RealVector<SystemClass::neqs> y_old[number_nodes];
     RealVector<SystemClass::neqs> y_new[number_nodes];
@@ -29,13 +38,27 @@ public:
 
     SdcIntegratorType() {}
 
-    SdcIntegratorType(RealVector<SystemClass::neqs>& y_init, Real time, Real time_step_init, SystemClass& ode_system, Real tolerance = 1.0e-6) {
-        y_new[0] = y_init;
+    SdcIntegratorType(SystemClass& ode_system) {
+        set_jacobian_layout(ode_system);
+    }
 
-        time_previous = 0.0;
+  SdcIntegratorType(SystemClass& ode_system, RealVector<SystemClass::neqs>& y_init,
+		    Real start_time, Real end_time, Real time_step_init,
+		    Real tolerance = 1.0e-6) {
+        set_jacobian_layout(ode_system);
+        initialize(y_init, start_time, end_time, time_step_init, tolerance);
+    }
+
+    void initialize(RealVector<SystemClass::neqs>& y_init,
+		    Real start_time, Real end_time, Real time_step_init = 0.0,
+		    Real tolerance = 1.0e-6) {
+        y_new[0] = y_init;
+	y_old[0] = y_init;
+
+        time_previous = start_time;
         time_nodes = time_previous;
-        time_target = time;
-        time_step = time_step_init;
+        time_target = end_time;
+        time_step = (time_step_init == 0.0) ? (end_time-start_time)/10.0 : time_step_init;
 
         step_counter = 0;        
         sdc_counter = 1;
@@ -45,19 +68,58 @@ public:
         newton_tolerance = tolerance;
         small = 1.0e-100;
 
-        j_new.set_csr_layout(ode_system.csr_col_index,
-                             ode_system.csr_row_count);
         j_new = 0.0;
 
         for (size_t i = 0; i < number_nodes; i++) {
             f_old[i] = 0.0;
-            y_old[i] = 0.0;
+	    if (i > 0) y_old[i] = 0.0;
         }
 
         status = SdcStatus::StartTimestep;
-    }    
+    }
+
+    void set_jacobian_layout(SystemClass& ode_system) {
+        j_new.set_csr_layout(ode_system.csr_col_index, ode_system.csr_row_count);
+    }
 
     ~SdcIntegratorType() {}
+
+  void print() {
+    std::cout << "status: " << enum_class_integer<SdcStatus>(status) << std::endl;
+    
+    std::cout << "step_counter: " << step_counter << std::endl;
+    std::cout << "sdc_counter: " << sdc_counter << std::endl;
+    std::cout << "node_counter: " << node_counter << std::endl;
+    std::cout << "newton_counter: " << newton_counter << std::endl;
+
+    std::cout << "time target: " << time_target << std::endl;
+    
+    std::cout << "time nodes:" << std::endl;
+    time_nodes.print();
+    
+    std::cout << std::endl << "y_old:" << std::endl;
+    for (size_t i = 0; i < number_nodes; i++) {
+      std::cout << i << ": "; y_old[i].print(); std::cout << std::endl;
+    }
+    
+    std::cout << "f_old:" << std::endl;
+    for (size_t i = 0; i < number_nodes; i++) {
+      std::cout << i << ": "; f_old[i].print(); std::cout << std::endl;
+    }
+    
+    std::cout << "y_new:" << std::endl;
+    for (size_t i = 0; i < number_nodes; i++) {
+      std::cout << i << ": "; y_new[i].print(); std::cout << std::endl;
+    }    
+  }
+
+    RealVector<SystemClass::neqs> get_previous_solution() {
+        return y_new[node_counter-1];
+    }
+
+    Real get_previous_time() {
+        return time_nodes[node_counter-1];
+    }
 
     RealVector<SystemClass::neqs> get_current_solution() {
         return y_new[node_counter];
@@ -73,12 +135,17 @@ public:
             initialize_nodes();
         }
 
+	if (status == SdcStatus::StartSDCIteration) {
+            save_sdc_iteration();
+	}
+
         if (status == SdcStatus::StartTimestep ||
             status == SdcStatus::StartSDCIteration ||
             status == SdcStatus::StartNode) {
             evaluate_quadrature();
             guess_new_solution();
             newton_error = 1.0e30;
+	    y_delta = 0.0;
         }
 
         evaluate_system();
@@ -94,11 +161,11 @@ public:
         // Use the results of the previous solve to check status
         // and update integration state & status
 
-        // The linear solve will have stored y_delta in f_new
-        // to save memory so we update y_new and update corrector error.
+        // We update y_new and update corrector error.
 
-        y_new[node_counter] + f_new;
-        newton_error = f_new.rms_norm()/(y_new[node_counter].max_norm() + small);
+        y_new[node_counter] + y_delta;
+        newton_error = y_delta.rms_norm()/(y_new[node_counter].max_norm() + small);
+	y_delta = 0.0;
     }
 
     void update_status() {
@@ -113,7 +180,7 @@ public:
                 // Check if we are finished with all SDC iterations
                 if (sdc_counter == order) {
                     // Check if we have reached the stop time or max timesteps
-                    if ((time_nodes[number_nodes-1] - time_target) < small) {
+                    if (fabs(time_nodes[number_nodes-1] - time_target) < small) {
                         // We have reached the stop time successfully
                         new_status = SdcStatus::Completed;
                     } else {
@@ -143,12 +210,13 @@ public:
 
     void evaluate_system() {
         // Evaluate F and Jac at y_new to set f_new and j_new
-        SystemClass::evaluate(time_nodes[node_counter], y_new[node_counter], f_new, j_new);
+        SystemClass::evaluate(time_nodes[node_counter], y_new[node_counter],
+			      f_new[node_counter], j_new);
     }
 
     void setup_linear_system() {
         // Set up the linear system A*x = b to solve.
-        // Puts A into j_new and puts b into f_new.
+        // Puts A into j_new and puts b into y_delta.
 
         // Form the matrix A:
         j_new * (time_nodes[node_counter-1] - time_nodes[node_counter]);
@@ -158,15 +226,19 @@ public:
 
         // Form the vector b:
         for (size_t i = 0; i < SystemClass::neqs; i++) {
-            f_new[i] = (y_new[node_counter-1][i] - y_new[node_counter][i] +
-                        (time_nodes[node_counter] - time_nodes[node_counter-1]) *
-                        (f_new[i] - f_old[node_counter][i]) +
-                        q_node[i]);
+            y_delta[i] = (y_new[node_counter-1][i] - y_new[node_counter][i] +
+                         (time_nodes[node_counter] - time_nodes[node_counter-1]) *
+                         (f_new[node_counter][i] - f_old[node_counter][i]) +
+                         q_node[i]);
         }
     }
 
     bool is_finished() {
         return (status == SdcStatus::Completed || status == SdcStatus::Failed);
+    }
+
+    bool is_started() {
+        return (step_counter > 0 || sdc_counter > 1 || node_counter > 1 || newton_counter > 0);
     }
 
     void evaluate_quadrature() {
@@ -212,8 +284,8 @@ public:
 
             // increment node counter
             node_counter++;
-        } else if (status == SdcStatus::StartNewton) {
-            // increment newton counter
+        } else {
+            // increment newton counter for the newton step we just did
             newton_counter++;
         }
     }
@@ -224,10 +296,11 @@ public:
         if (step_counter > 0) {
             time_previous = time_nodes[number_nodes-1];
             y_old[0] = y_new[number_nodes-1];
-        }
-
-        // Evaluate the system at y_old and set y_old and f_old for nodes
-        SystemClass::evaluate(time_nodes[0], y_old[0], f_old[0]);
+	    f_old[0] = f_new[number_nodes-1];
+        } else {
+            // Evaluate the system at y_old and set y_old and f_old for nodes
+            SystemClass::evaluate(time_nodes[0], y_old[0], f_old[0]);
+	}
 
         for (size_t i = 1; i < number_nodes; i++) {
             y_old[i] = y_old[0];
@@ -239,6 +312,13 @@ public:
         for (size_t i = 0; i < number_nodes; i++) {
             time_nodes[i] = time_previous + i * dt_node;
         }        
+    }
+
+    void save_sdc_iteration() {
+        for (size_t i = 1; i < number_nodes; i++) {
+            y_old[i] = y_new[i];
+            f_old[i] = f_new[i];
+        }
     }
 
     void guess_new_solution() {
@@ -255,7 +335,7 @@ public:
     }
 
     Real* get_vector() {
-        return f_new.dataPtr();
+        return y_delta.dataPtr();
     }
 };
 #endif
