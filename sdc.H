@@ -99,17 +99,9 @@ template<class SystemClass> class SdcIntegrator : public UnifiedMemoryClass {
     }
 
     void initialize() {
-        RealVector<SystemClass::neqs> y_initial;
-        y_initial = 0.0;
-        y_initial[0] = 1.0;
-        Real end_time = 1.0e-6;
-        Real dt_init = end_time/10.0;
-
         for (size_t i = 0; i < number_systems; i++) {
             SdcIntegratorType<SystemClass, order>* sdc_state;
-            sdc_state = new SdcIntegratorType<SystemClass, order>(y_initial,
-                                                                  end_time, dt_init,
-                                                                  ode_system);
+            sdc_state = new SdcIntegratorType<SystemClass, order>(ode_system);
             states.push_back(sdc_state);
         }
     }
@@ -143,6 +135,14 @@ public:
     }
 
     ~SdcIntegrator() {}
+
+    decltype(states.begin()) begin() {
+      return states.begin();
+    }
+
+    decltype(states.begin()) end() {
+      return states.end();
+    }
 
     void integrate() {
         bool some_unfinished = true;
@@ -183,14 +183,17 @@ public:
 
     void print_state() {
         size_t istate = 0;
-        std::cout << "in print_state" << std::endl;
         for (const auto& sdc_state : states) {
             std::cout << "System no. " << istate << std::endl;
-            std::cout << "time = " << sdc_state->get_current_time() << std::endl;
-            std::cout << "solution = "; sdc_state->get_current_solution().print(); std::cout << std::endl;
+	    if (sdc_state->is_started()) {
+                std::cout << "time = " << sdc_state->get_current_time() << std::endl;
+                std::cout << "solution = "; sdc_state->get_current_solution().print(); std::cout << std::endl;
+	    } else {
+                std::cout << "time = " << sdc_state->get_previous_time() << std::endl;
+                std::cout << "solution = "; sdc_state->get_previous_solution().print(); std::cout << std::endl;
+	    }
             istate++;
         }
-        std::cout << "leaving print_state" << std::endl;
     }
 };
 #endif
