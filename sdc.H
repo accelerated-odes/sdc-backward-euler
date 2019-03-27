@@ -2,6 +2,7 @@
 #define SDC_INTEGRATOR_H
 
 #include <iostream>
+#include <vector>
 #include "SparseLinearSolver.H"
 #include "AMReX_REAL.H"
 #include "unified.H"
@@ -47,7 +48,7 @@ void solver_to_states_kernel(Real* solver_solution,
 template<class SystemClass> class SdcIntegrator : public UnifiedMemoryClass {
     size_t number_systems;
     static const size_t order = 4;
-    UnifiedVector<SdcIntegratorType<SystemClass, order>*> states;
+    std::vector<SdcIntegratorType<SystemClass, order>*> states;
 
     SystemClass ode_system;
 
@@ -59,7 +60,6 @@ template<class SystemClass> class SdcIntegrator : public UnifiedMemoryClass {
     Real* solver_vector;
     Real* solver_solution;
 
-private:
 
     void states_to_solver() {
         cudaError_t cuda_status = cudaSuccess;
