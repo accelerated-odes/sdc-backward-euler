@@ -7,8 +7,8 @@
 #include "AMReX_REAL.H"
 #include "unified.H"
 #include "unified_vector.H"
+#include "WallTimer.H"
 #include "SdcIntegratorType.H"
-
 
 __global__
 void states_to_solver_kernel(Real* solver_matrix,
@@ -45,7 +45,7 @@ void solver_to_states_kernel(Real* solver_solution,
   }
 }
 
-template<class SystemClass> class SdcIntegrator : public UnifiedMemoryClass {
+template<class SystemClass> class SdcIntegrator : public WallTimer {
   size_t number_systems;
   static const size_t order = 4;
   std::vector<SdcIntegratorType<SystemClass, order>*> states;
@@ -59,7 +59,6 @@ template<class SystemClass> class SdcIntegrator : public UnifiedMemoryClass {
   Real* solver_matrix;
   Real* solver_vector;
   Real* solver_solution;
-
 
   void states_to_solver() {
     cudaError_t cuda_status = cudaSuccess;
@@ -145,20 +144,21 @@ public:
   }
 
   void integrate() {
-    bool some_unfinished = true;
+    start_wallclock();
 
-    batched_matrices.resize(0);
-    batched_vectors.resize(0);
-    batched_indices.resize(0);
+    bool some_unfinished = true;
 
     while (some_unfinished) {
       some_unfinished = false;
 
-      // Prepare
+      batched_matrices.resize(0);
+      batched_vectors.resize(0);
+      batched_indices.resize(0);
+
+      // Figure out which have not finished
       size_t istate = 0;
       for (auto& sdc_state : states) {
 	if (!sdc_state->is_finished()) {
-	  sdc_state->prepare();
 	  some_unfinished = true;
 	  batched_matrices.push_back(sdc_state->get_matrix());
 	  batched_vectors.push_back(sdc_state->get_vector());
@@ -169,16 +169,21 @@ public:
 
       if (!some_unfinished) break;
 
+      // Prepare
+      for (auto& i : batched_indices) {
+	states[i]->prepare();
+      }
+
       // Solve linear system
       linear_solve();
 
       // Update
-      for (auto& sdc_state : states) {
-	if (!sdc_state->is_finished()) {
-	  sdc_state->update();
-	}
+      for (auto& i : batched_indices) {
+	states[i]->update();
       }
     }
+
+    stop_wallclock();
   }
 
   void print_states() {
