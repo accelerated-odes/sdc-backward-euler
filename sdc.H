@@ -5,6 +5,7 @@
 #include <vector>
 #include "SparseLinearSolver.H"
 #include "AMReX_REAL.H"
+#include "AMReX_GpuError.H"
 #include "unified.H"
 #include "unified_vector.H"
 #include "WallTimer.H"
@@ -121,12 +122,8 @@ template<class SystemClass> class SdcIntegrator : public WallTimer {
 
   void initialize() {
     void* vp;
-    cudaError_t cuda_status;
-    cuda_status = cudaMallocManaged(&vp, number_systems * sizeof(SdcIntegratorType<SystemClass, order>));
-    if (cuda_status != cudaSuccess)
-        std::cout << cudaGetErrorString(cuda_status) << std::endl;
-    assert(cuda_status == cudaSuccess);
 
+    AMREX_GPU_SAFE_CALL(cudaMallocManaged(&vp, number_systems * sizeof(SdcIntegratorType<SystemClass, order>)))
     state_memory = static_cast<SdcIntegratorType<SystemClass, order>*>(vp);
 
     for (size_t i = 0; i < number_systems; i++) {
