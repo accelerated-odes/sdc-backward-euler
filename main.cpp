@@ -30,12 +30,10 @@ int main(int argc, char* argv[]) {
     bool fail_if_maximum_newton = true;
 
     timer.start_wallclock();
-
     for (auto& sdc_state : sdc_integrator) {
       sdc_state->initialize(y_initial, start_time, end_time, start_timestep,
 			    tolerance, maximum_newton_iters, fail_if_maximum_newton);
     }
-
     timer.stop_wallclock();
 
     std::cout << "Initialized SdcIntegrator states in " << timer.get_walltime() << " s." << std::endl;
