@@ -118,22 +118,27 @@ public:
     }
   }
 
+  __host__ __device__
   RealVector<SystemClass::neqs> get_previous_solution() {
     return y_new[node_counter-1];
   }
 
+  __host__ __device__
   Real get_previous_time() {
     return time_nodes[node_counter-1];
   }
 
+  __host__ __device__
   RealVector<SystemClass::neqs> get_current_solution() {
     return y_new[node_counter];
   }
 
+  __host__ __device__
   Real get_current_time() {
     return time_nodes[node_counter];
   }
 
+  __host__ __device__
   void prepare() {
     // Set up the solve
     if (status == SdcStatus::StartTimestep) {
@@ -157,11 +162,13 @@ public:
     setup_linear_system();
   }
 
+  __host__ __device__
   void update() {
     update_solution();
     update_status();
   }
 
+  __host__ __device__
   void update_solution() {
     // Use the results of the previous solve to check status
     // and update integration state & status
@@ -172,6 +179,7 @@ public:
     y_delta = 0.0;
   }
 
+  __host__ __device__
   void update_status() {
     SdcStatus new_status;
 
@@ -213,12 +221,14 @@ public:
     set_status(new_status);
   }
 
+  __host__ __device__
   void evaluate_system() {
     // Evaluate F and Jac at y_new to set f_new and j_new
     SystemClass::evaluate(time_nodes[node_counter], y_new[node_counter],
 			  f_new[node_counter], j_new);
   }
 
+  __host__ __device__
   void setup_linear_system() {
     // Set up the linear system A*x = b to solve.
     // Puts A into j_new and puts b into y_delta.
@@ -237,14 +247,17 @@ public:
     }
   }
 
+  __host__ __device__
   bool is_finished() {
     return (status == SdcStatus::Completed || status == SdcStatus::Failed);
   }
 
+  __host__ __device__
   bool is_started() {
     return (step_counter > 0 || sdc_counter > 1 || node_counter > 1 || newton_counter > 0);
   }
 
+  __host__ __device__
   void evaluate_quadrature() {
     // Use high order quadrature rule to set q_node
 
@@ -265,6 +278,7 @@ public:
       }
   }
 
+  __host__ __device__
   void set_status(SdcStatus new_status) {
     status = new_status;
     if (status == SdcStatus::StartTimestep) {
@@ -294,6 +308,7 @@ public:
     }
   }
 
+  __host__ __device__
   void initialize_nodes() {
     // If we are advancing the step, then move y_old forward
     // along with time_previous
@@ -320,6 +335,7 @@ public:
     }
   }
 
+  __host__ __device__
   void save_sdc_iteration() {
     for (size_t i = 1; i < number_nodes; i++) {
       y_old[i] = y_new[i];
@@ -327,6 +343,7 @@ public:
     }
   }
 
+  __host__ __device__
   void guess_new_solution() {
     if (sdc_counter > 1)
       y_new[node_counter] = y_old[node_counter];
@@ -336,10 +353,13 @@ public:
 
   // Get the pointers to the linear system array A and vector b.
   // System is Ax = b.
+
+  __host__ __device__
   Real* get_matrix() {
     return j_new.dataPtr();
   }
 
+  __host__ __device__
   Real* get_vector() {
     return y_delta.dataPtr();
   }

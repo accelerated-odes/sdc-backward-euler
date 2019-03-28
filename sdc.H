@@ -45,6 +45,26 @@ void solver_to_states_kernel(Real* solver_solution,
   }
 }
 
+template<class SystemClass, size_t order>
+__global__
+void prepare_states_kernel(SdcIntegratorType<SystemClass, order>** states, size_t size) {
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (tid < size) {
+    states[tid]->prepare();
+  }
+}
+
+template<class SystemClass, size_t order>
+__global__
+void update_states_kernel(SdcIntegratorType<SystemClass, order>** states, size_t size) {
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (tid < size) {
+    states[tid]->update();
+  }
+}
+
 template<class SystemClass> class SdcIntegrator : public WallTimer {
   size_t number_systems;
   static const size_t order = 4;
@@ -54,7 +74,7 @@ template<class SystemClass> class SdcIntegrator : public WallTimer {
 
   UnifiedVector<Real*> batched_matrices;
   UnifiedVector<Real*> batched_vectors;
-  UnifiedVector<size_t> batched_indices;
+  UnifiedVector<SdcIntegratorType<SystemClass, order>*> batched_states;
 
   Real* solver_matrix;
   Real* solver_vector;
@@ -63,7 +83,7 @@ template<class SystemClass> class SdcIntegrator : public WallTimer {
   void states_to_solver() {
     cudaError_t cuda_status = cudaSuccess;
 
-    int size = batched_indices.size();
+    int size = batched_states.size();
     int nThreads = min(32, size);
     int nBlocks = static_cast<int>(ceil(((double) size)/
 					((double) nThreads)));
@@ -108,7 +128,7 @@ template<class SystemClass> class SdcIntegrator : public WallTimer {
   void linear_solve() {
     // Construct and solve the linear system A*x = b
     // for each unfinished state. Put the answer x into f_new.
-    size_t number_unfinished = batched_indices.size();
+    size_t number_unfinished = batched_states.size();
 
     SparseLinearSolver<SystemClass> linear_solver(number_unfinished, ode_system);
 
@@ -128,7 +148,7 @@ public:
     states.resize(0);
     batched_matrices.resize(0);
     batched_vectors.resize(0);
-    batched_indices.resize(0);
+    batched_states.resize(0);
     initialize();
     std::cout << "sdc integrator initialized" << std::endl;
   }
@@ -153,7 +173,7 @@ public:
 
       batched_matrices.resize(0);
       batched_vectors.resize(0);
-      batched_indices.resize(0);
+      batched_states.resize(0);
 
       // Figure out which have not finished
       size_t istate = 0;
@@ -162,28 +182,47 @@ public:
 	  some_unfinished = true;
 	  batched_matrices.push_back(sdc_state->get_matrix());
 	  batched_vectors.push_back(sdc_state->get_vector());
-	  batched_indices.push_back(istate);
+	  batched_states.push_back(sdc_state);
 	}
 	istate++;
       }
 
       if (!some_unfinished) break;
 
-      // Prepare
-      for (auto& i : batched_indices) {
-	states[i]->prepare();
-      }
-
-      // Solve linear system
+      prepare_states();
       linear_solve();
-
-      // Update
-      for (auto& i : batched_indices) {
-	states[i]->update();
-      }
+      update_states();
     }
 
     stop_wallclock();
+  }
+
+  void prepare_states() {
+    cudaError_t cuda_status = cudaSuccess;
+
+    int size = batched_states.size();
+    int nThreads = min(32, size);
+    int nBlocks = static_cast<int>(ceil(((double) size)/
+					((double) nThreads)));
+
+    prepare_states_kernel<SystemClass, order><<<nBlocks, nThreads>>>(batched_states.dataPtr(), size);
+
+    cuda_status = cudaDeviceSynchronize();
+    assert(cuda_status == cudaSuccess);
+  }
+
+  void update_states() {
+    cudaError_t cuda_status = cudaSuccess;
+
+    int size = batched_states.size();
+    int nThreads = min(32, size);
+    int nBlocks = static_cast<int>(ceil(((double) size)/
+					((double) nThreads)));
+
+    update_states_kernel<SystemClass, order><<<nBlocks, nThreads>>>(batched_states.dataPtr(), size);
+
+    cuda_status = cudaDeviceSynchronize();
+    assert(cuda_status == cudaSuccess);
   }
 
   void print_states() {
