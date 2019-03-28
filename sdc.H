@@ -68,7 +68,9 @@ void update_states_kernel(SdcIntegratorType<SystemClass, order>** states, size_t
 template<class SystemClass> class SdcIntegrator : public WallTimer {
   size_t number_systems;
   static const size_t order = 4;
+
   std::vector<SdcIntegratorType<SystemClass, order>*> states;
+  SdcIntegratorType<SystemClass, order>* state_memory;
 
   SystemClass ode_system;
 
@@ -118,9 +120,18 @@ template<class SystemClass> class SdcIntegrator : public WallTimer {
   }
 
   void initialize() {
+    void* vp;
+    cudaError_t cuda_status;
+    cuda_status = cudaMallocManaged(&vp, number_systems * sizeof(SdcIntegratorType<SystemClass, order>));
+    if (cuda_status != cudaSuccess)
+        std::cout << cudaGetErrorString(cuda_status) << std::endl;
+    assert(cuda_status == cudaSuccess);
+
+    state_memory = static_cast<SdcIntegratorType<SystemClass, order>*>(vp);
+
     for (size_t i = 0; i < number_systems; i++) {
-      SdcIntegratorType<SystemClass, order>* sdc_state;
-      sdc_state = new SdcIntegratorType<SystemClass, order>(ode_system);
+      SdcIntegratorType<SystemClass, order>* sdc_state = &state_memory[i];
+      new (sdc_state) SdcIntegratorType<SystemClass, order>(ode_system);
       states.push_back(sdc_state);
     }
   }

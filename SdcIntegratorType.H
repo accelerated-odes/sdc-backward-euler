@@ -16,7 +16,7 @@ template<typename EnumClass> auto enum_class_integer(EnumClass const value) ->
   return static_cast<typename std::underlying_type<EnumClass>::type>(value);
 }
 
-template<class SystemClass, size_t order> class SdcIntegratorType : public UnifiedMemoryClass {
+template<class SystemClass, size_t order> class SdcIntegratorType {
   static const size_t number_nodes = order - 1;
   static const size_t maximum_steps = 1000000;
 
