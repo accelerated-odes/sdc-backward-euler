@@ -3,7 +3,7 @@
 
 #include "RealVector.H"
 #include "IntegerVector.H"
-#include "RealSquareMatrix.H"
+#include "RealSparseMatrix.H"
 
 class VodeSystem {
 public:
