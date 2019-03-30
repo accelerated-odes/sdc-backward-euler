@@ -3,7 +3,7 @@
 
 #include "RealVector.H"
 #include "IntegerVector.H"
-#include "RealSparseMatrix.H"
+#include "RealSparseMatrixLayout.H"
 
 class VodeSystem {
 public:
@@ -38,7 +38,7 @@ public:
 
     __host__ __device__
     static void evaluate(Real time, RealVector<neqs>& y, RealVector<neqs>& rhs,
-                         RealSparseMatrix<neqs,nnz>& jac) {
+                         RealSparseMatrixLayout<neqs,nnz>& jac) {
         rhs[0] = -0.04 * y[0] + 1.e4 * y[1] * y[2];
         rhs[1] =  0.04 * y[0] - 1.e4 * y[1] * y[2] - 3.e7 * y[1] * y[1];
         rhs[2] =  3.e7 * y[1] * y[1];

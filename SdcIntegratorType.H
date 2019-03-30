@@ -6,7 +6,7 @@
 #include "math.h"
 #include "AMReX_REAL.H"
 #include "RealVector.H"
-#include "RealSparseMatrix.H"
+#include "RealSparseMatrixLayout.H"
 #include "unified.H"
 
 enum class SdcStatus {Completed, Failed, StartTimestep, StartSDCIteration, StartNode, StartNewton};
@@ -28,12 +28,16 @@ template<class SystemClass, size_t order> class SdcIntegratorType {
   Real time_previous, time_target, time_step, newton_error, newton_tolerance, small;
   RealVector<number_nodes> time_nodes;
 
-  RealVector<SystemClass::neqs> q_node, y_delta;
+  RealVector<SystemClass::neqs> q_node;
+
+  Real* y_delta;
+  Real* implicit_rhs;
+  RealSparseMatrixLayout<SystemClass::neqs, SystemClass::nnz> j_new;
+
   RealVector<SystemClass::neqs> f_new[number_nodes];
   RealVector<SystemClass::neqs> f_old[number_nodes];
   RealVector<SystemClass::neqs> y_old[number_nodes];
   RealVector<SystemClass::neqs> y_new[number_nodes];
-  RealSparseMatrix<SystemClass::neqs, SystemClass::nnz> j_new;
 
 public:
 
@@ -72,8 +76,6 @@ public:
     maximum_newton = max_newton_iters;
     newton_tolerance = tolerance;
     small = std::numeric_limits<Real>::epsilon();
-
-    j_new = 0.0;
 
     for (size_t i = 0; i < number_nodes; i++) {
       f_old[i] = 0.0;
@@ -155,7 +157,6 @@ public:
       evaluate_quadrature();
       guess_new_solution();
       newton_error = 1.0e30;
-      y_delta = 0.0;
     }
 
     evaluate_system();
@@ -174,9 +175,14 @@ public:
     // and update integration state & status
 
     // We update y_new and update corrector error.
-    y_new[node_counter] + y_delta;
-    newton_error = y_delta.frobenius_norm()/(y_new[node_counter].max_norm() + small);
-    y_delta = 0.0;
+    Real delta_norm = zero;
+    for (size_t i = 0; i < SystemClass::neqs; i++) {
+      y_new[node_counter][i] += y_delta[i];
+      delta_norm += y_delta[i] * y_delta[i];
+    }
+    delta_norm = sqrt(delta_norm);
+    
+    newton_error = delta_norm/(y_new[node_counter].max_norm() + small);
   }
 
   __host__ __device__
@@ -231,7 +237,7 @@ public:
   __host__ __device__
   void setup_linear_system() {
     // Set up the linear system A*x = b to solve.
-    // Puts A into j_new and puts b into y_delta.
+    // Puts A into j_new in-place and puts b into implicit_rhs.
 
     // Form the matrix A:
     j_new * (time_nodes[node_counter-1] - time_nodes[node_counter]);
@@ -241,9 +247,9 @@ public:
 
     // Form the vector b:
     for (size_t i = 0; i < SystemClass::neqs; i++) {
-      y_delta[i] = y_new[node_counter-1][i] - y_new[node_counter][i];
-      y_delta[i] += (time_nodes[node_counter] - time_nodes[node_counter-1]) * (f_new[node_counter][i] - f_old[node_counter][i]);
-      y_delta[i] += q_node[i];
+      implicit_rhs[i] = y_new[node_counter-1][i] - y_new[node_counter][i];
+      implicit_rhs[i] += (time_nodes[node_counter] - time_nodes[node_counter-1]) * (f_new[node_counter][i] - f_old[node_counter][i]);
+      implicit_rhs[i] += q_node[i];
     }
   }
 
@@ -351,17 +357,11 @@ public:
       y_new[node_counter] = y_new[node_counter-1];
   }
 
-  // Get the pointers to the linear system array A and vector b.
-  // System is Ax = b.
-
   __host__ __device__
-  Real* get_matrix() {
-    return j_new.dataPtr();
-  }
-
-  __host__ __device__
-  Real* get_vector() {
-    return y_delta.dataPtr();
+  void map_linear_system(Real* A, Real* x, Real* b) {
+    j_new.map(A);
+    y_delta = x;
+    implicit_rhs = b;
   }
 };
 #endif
