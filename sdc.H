@@ -42,6 +42,14 @@ void update_states_kernel(SdcIntegratorType<SystemClass, order>** states, size_t
   }
 }
 
+template<class SystemClass, size_t order>
+struct sdc_state_finished {
+  __host__ __device__
+  bool operator()(SdcIntegratorType<SystemClass, order>* s) {
+    return s->is_finished();
+  }
+};
+
 template<class SystemClass> class SdcIntegrator : public WallTimer {
   size_t number_systems;
   static const size_t order = 4;
@@ -51,7 +59,10 @@ template<class SystemClass> class SdcIntegrator : public WallTimer {
 
   SystemClass ode_system;
 
-  UnifiedVector<SdcIntegratorType<SystemClass, order>*> batched_states;
+  thrust::device_vector<SdcIntegratorType<SystemClass, order>*> batched_states;
+  decltype(batched_states.end()) unfinished_end;
+
+  size_t batched_size;
 
   void initialize() {
     void* vp;
@@ -64,6 +75,8 @@ template<class SystemClass> class SdcIntegrator : public WallTimer {
       new (sdc_state) SdcIntegratorType<SystemClass, order>(ode_system);
       states.push_back(sdc_state);
     }
+
+    batched_states = states;
   }
 
 public:
@@ -72,11 +85,15 @@ public:
     number_systems = nsystems;
     states.resize(0);
     batched_states.resize(0);
-    initialize();
+    if (number_systems > 0) initialize();
     std::cout << "sdc integrator initialized" << std::endl;
   }
 
-  ~SdcIntegrator() {}
+  ~SdcIntegrator() {
+    if (number_systems > 0) {
+      AMREX_GPU_SAFE_CALL(cudaFree(state_memory));
+    }
+  }
 
   decltype(states.begin()) begin() {
     return states.begin();
@@ -89,26 +106,16 @@ public:
   void integrate() {
     start_wallclock();
 
-    bool some_unfinished = true;
+    while (true) {
 
-    while (some_unfinished) {
-      some_unfinished = false;
+      unfinished_end = thrust::remove_if(thrust::device,
+					 batched_states.begin(), 
+					 batched_states.end(), 
+					 sdc_state_finished<SystemClass,order>());
 
-      batched_states.resize(0);
+      batched_size = unfinished_end - batched_states.begin();
 
-      // Figure out which have not finished
-      size_t istate = 0;
-      for (auto& sdc_state : states) {
-	if (!sdc_state->is_finished()) {
-	  some_unfinished = true;
-	  batched_states.push_back(sdc_state);
-	}
-	istate++;
-      }
-
-      int batched_size = istate;
-
-      if (!some_unfinished) break;
+      if (batched_size == 0) break;
 
       {
 	SparseLinearSolver<SystemClass> linear_solver(batched_size, ode_system);
@@ -167,7 +174,9 @@ public:
     int nBlocks = static_cast<int>(ceil(((double) size)/
 					((double) nThreads)));
 
-    prepare_states_kernel<SystemClass, order><<<nBlocks, nThreads>>>(batched_states.dataPtr(), size);
+    SdcIntegratorType<SystemClass, order>** s = thrust::raw_pointer_cast(&batched_states[0]);
+
+    prepare_states_kernel<SystemClass, order><<<nBlocks, nThreads>>>(s, size);
 
     cuda_status = cudaDeviceSynchronize();
     assert(cuda_status == cudaSuccess);
@@ -181,7 +190,9 @@ public:
     int nBlocks = static_cast<int>(ceil(((double) size)/
 					((double) nThreads)));
 
-    update_states_kernel<SystemClass, order><<<nBlocks, nThreads>>>(batched_states.dataPtr(), size);
+    SdcIntegratorType<SystemClass, order>** s = thrust::raw_pointer_cast(&batched_states[0]);
+
+    update_states_kernel<SystemClass, order><<<nBlocks, nThreads>>>(s, size);
 
     cuda_status = cudaDeviceSynchronize();
     assert(cuda_status == cudaSuccess);
