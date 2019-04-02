@@ -22,16 +22,16 @@ public:
     using RealVector<NNZ>::mul;
     using RealVector<NNZ>::div;    
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     RealSparseMatrix() {}
 
-    __host__ __device__    
+    AMREX_GPU_HOST_DEVICE    
     RealSparseMatrix(IntegerVector<NNZ>& input_col_index,
                            IntegerVector<N+1>& input_row_count) {
         RealSparseMatrix<N,NNZ>::set_csr_layout(*this, input_col_index, input_row_count);
     }
 
-    __host__ __device__    
+    AMREX_GPU_HOST_DEVICE    
     ~RealSparseMatrix() {}
 
     void print_layout() {
@@ -47,7 +47,7 @@ public:
         std::cout << std::endl << std::endl;
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static void set_csr_layout(RealSparseMatrix<N,NNZ>& ml,
                                IntegerVector<NNZ>& input_col_index,
                                IntegerVector<N+1>& input_row_count) {
@@ -55,7 +55,7 @@ public:
         IntegerVector<N+1>::equals(ml.row_count, input_row_count);
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static int lookup_csr_location(RealSparseMatrix<N,NNZ>& ml,
                                    size_t irow, size_t icol) {
         int num_in_row = ml.row_count.data[irow+1] - ml.row_count.data[irow];
@@ -73,7 +73,7 @@ public:
         return csr_loc;
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static Real& ij(RealSparseMatrix<N,NNZ>& ml, size_t i, size_t j) {
         // i: row index [0, N-1]
         // j: col index [0, N-1]

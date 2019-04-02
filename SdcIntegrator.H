@@ -8,6 +8,11 @@
 #include "RealVector.H"
 #include "RealSparseMatrix.H"
 
+#ifndef AMREX_USE_CUDA
+using std::min;
+using std::max;
+#endif
+
 enum class SdcStatus {Completed, Failed, StartTimestep, StartSDCIteration, StartNode, StartNewton};
 
 template<typename EnumClass> auto enum_class_integer(EnumClass const value) ->
@@ -21,6 +26,9 @@ template<class SparseLinearSolver, class SystemClass, size_t order> class SdcInt
   typedef RealSparseMatrix<SystemClass::neqs, SystemClass::nnz> SMat;
     
   static const size_t number_nodes = order - 1;
+
+  const Real dt_control_S1 = 0.9;
+  const Real dt_control_S2 = 4.0;
 
   SdcStatus status;
   size_t step_counter, sdc_counter, node_counter, newton_counter;
@@ -43,10 +51,10 @@ template<class SparseLinearSolver, class SystemClass, size_t order> class SdcInt
 
 public:
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   SdcIntegrator() {}
 
-    __host__ __device__    
+    AMREX_GPU_HOST_DEVICE    
     static void initialize(SdcIntClass& sdc,
                            RealVector<SystemClass::neqs>& y_init,
                            Real start_time, Real end_time, Real time_step_init = 0.0,
@@ -80,14 +88,14 @@ public:
         sdc.status = SdcStatus::StartTimestep;
     }
 
-  __host__ __device__    
+  AMREX_GPU_HOST_DEVICE    
   static void set_jacobian_layout(SdcIntClass& sdc, SystemClass& ode_system) {
       RealSparseMatrix<SystemClass::neqs, SystemClass::nnz>::set_csr_layout(sdc.j_new,
                                                                             ode_system.csr_col_index,
                                                                             ode_system.csr_row_count);
   }
 
-  __host__ __device__    
+  AMREX_GPU_HOST_DEVICE    
   ~SdcIntegrator() {}
 
   void print() {
@@ -119,27 +127,27 @@ public:
     }
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static RealVector<SystemClass::neqs>& get_previous_solution(SdcIntClass& sdc) {
     return sdc.y_new[sdc.node_counter-1];
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static Real get_previous_time(SdcIntClass& sdc) {
     return sdc.time_nodes.data[sdc.node_counter-1];
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static RealVector<SystemClass::neqs>& get_current_solution(SdcIntClass& sdc) {
     return sdc.y_new[sdc.node_counter];
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static Real get_current_time(SdcIntClass& sdc) {
     return sdc.time_nodes.data[sdc.node_counter];
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static void prepare(SdcIntClass& sdc) {
     // Set up the solve
     if (sdc.status == SdcStatus::StartTimestep) {
@@ -162,18 +170,18 @@ public:
     SdcIntClass::setup_linear_system(sdc);
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static void solve(SdcIntClass& sdc) {
       SparseLinearSolver::solve(sdc.j_new.data, sdc.y_delta.data, sdc.implicit_rhs.data);
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static void update(SdcIntClass& sdc) {
       SdcIntClass::update_solution(sdc);
       SdcIntClass::update_status(sdc);
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static void update_solution(SdcIntClass& sdc) {
     // Use the results of the previous solve to check status
     // and update integration state & status
@@ -185,7 +193,7 @@ public:
     sdc.newton_error = delta_norm/(NReals::max_norm(sdc.y_new[sdc.node_counter]) + sdc.small);
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static void update_status(SdcIntClass& sdc) {
     SdcStatus new_status;
 
@@ -227,14 +235,14 @@ public:
     SdcIntClass::set_status(sdc, new_status);
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static void evaluate_system(SdcIntClass& sdc) {
     // Evaluate F and Jac at y_new to set f_new and j_new
     SystemClass::evaluate(sdc.time_nodes.data[sdc.node_counter], sdc.y_new[sdc.node_counter],
                           sdc.f_new[sdc.node_counter], sdc.j_new);
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static void setup_linear_system(SdcIntClass& sdc) {
     // Set up the linear system A*x = b to solve.
     // Puts A into j_new in-place and puts b into implicit_rhs.
@@ -253,17 +261,17 @@ public:
     }
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static bool is_finished(SdcIntClass& sdc) {
     return (sdc.status == SdcStatus::Completed || sdc.status == SdcStatus::Failed);
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static bool is_started(SdcIntClass& sdc) {
     return (sdc.step_counter > 0 || sdc.sdc_counter > 1 || sdc.node_counter > 1 || sdc.newton_counter > 0);
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static void evaluate_quadrature(SdcIntClass& sdc) {
     // Use high order quadrature rule to set q_node
 
@@ -284,7 +292,7 @@ public:
       }
   }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static void set_status(SdcIntClass& sdc, SdcStatus new_status) {
         sdc.status = new_status;
         if (SdcIntClass::is_finished(sdc)) return;
@@ -316,7 +324,7 @@ public:
         }
     }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static void initialize_nodes(SdcIntClass& sdc) {
     // If we are advancing the step, then move y_old forward
     // along with time_previous
@@ -326,6 +334,15 @@ public:
         NReals::equals(sdc.f_old[0], sdc.f_new[number_nodes-1]);
         NReals::equals(sdc.y_new[0], sdc.y_old[0]);
         NReals::equals(sdc.f_new[0], sdc.f_old[0]);
+	
+	// Set new timestep for 4th order error control
+	// Uses adaptive timestepping from Garcia, Eqs. 3.30, 3.31
+	Real dt_est = sdc.time_step * pow(fabs(sdc.newton_tolerance/sdc.newton_error), 0.2);
+	Real tnow = SdcIntClass::get_current_time(sdc);
+	sdc.time_step = min(min(max(sdc.dt_control_S1 * dt_est, 
+				    sdc.time_step/sdc.dt_control_S2),
+				sdc.time_step * sdc.dt_control_S2),
+			    sdc.time_target - tnow);
     } else {
       // Evaluate the system at y_old and set y_old and f_old for nodes
       SystemClass::evaluate(sdc.time_nodes.data[0], sdc.y_old[0], sdc.f_old[0]);
@@ -343,7 +360,7 @@ public:
     }
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static void save_sdc_iteration(SdcIntClass& sdc) {
     for (size_t i = 1; i < sdc.number_nodes; i++) {
         NReals::equals(sdc.y_old[i], sdc.y_new[i]);
@@ -351,7 +368,7 @@ public:
     }
   }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static void guess_new_solution(SdcIntClass& sdc) {
     if (sdc.sdc_counter > 1)
         NReals::equals(sdc.y_new[sdc.node_counter], sdc.y_old[sdc.node_counter]);

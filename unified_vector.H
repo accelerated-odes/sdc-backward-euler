@@ -27,24 +27,24 @@ public:
         assert(cuda_status == cudaSuccess);
     }
 
-    __host__ __device__ T* dataPtr() {
+    AMREX_GPU_HOST_DEVICE T* dataPtr() {
         return begin();
     }
 
-    __host__ __device__ T* begin() {
+    AMREX_GPU_HOST_DEVICE T* begin() {
         return data_ptr;
     }
 
-    __host__ __device__ T* end() {
+    AMREX_GPU_HOST_DEVICE T* end() {
         return data_ptr + filled_size;
     }
 
-    __host__ __device__ T& operator[] (unsigned int i) {
+    AMREX_GPU_HOST_DEVICE T& operator[] (unsigned int i) {
         // need to check this isn't OOB!!
         return *(data_ptr + i);
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     UnifiedVector<T>& operator=(UnifiedVector<T>& other) {
 #ifdef __CUDA_ARCH__
         assert(other.filled_size <= this->allocated_size);
@@ -58,7 +58,7 @@ public:
         return *this;
     }
 
-    __host__ __device__ T* get_pointer_to (unsigned int i) {
+    AMREX_GPU_HOST_DEVICE T* get_pointer_to (unsigned int i) {
         return (data_ptr + i);
     }
 
@@ -88,7 +88,7 @@ public:
         }
     }
 
-    __host__ __device__ size_t size() {
+    AMREX_GPU_HOST_DEVICE size_t size() {
         return filled_size;
     }
 };

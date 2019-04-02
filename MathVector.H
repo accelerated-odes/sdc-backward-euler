@@ -2,28 +2,29 @@
 #define _MATH_VECTOR_H
 #include <iostream>
 #include <cassert>
+#include "AMReX_GpuQualifiers.H"
 
 template<class MathType, size_t N> class MathVector {
 public:
     MathType data[N];
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     MathVector() {}
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     ~MathVector() {}
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static MathType* begin(MathVector<MathType, N>& v) {
         return v.data;
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static MathType* end(MathVector<MathType, N>& v) {
         return v.data + N;
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static MathType* dataPtr(MathVector<MathType, N>& v) {
         return begin();
     }
@@ -37,7 +38,7 @@ public:
     }
   }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static void equals(MathVector<MathType, N>& destination,
                        MathVector<MathType, N>& source) {
         for (size_t i = 0; i < N; i++) {
@@ -45,75 +46,75 @@ public:
         }
     }
 
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static void equals(MathVector<MathType, N>& destination, MathType scalar) {
     for (size_t i = 0; i < N; i++) {
       destination.data[i] = scalar;
     }
   }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static MathType& element(MathVector<MathType, N>& v, unsigned int i) {
         return v.data[i];
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static void add(MathVector<MathType, N>& x, MathVector<MathType, N>& y) {
         for (size_t i = 0; i < N; i++) {
             x.data[i] += y.data[i];
         }
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static void add(MathVector<MathType, N>& x, MathType scalar) {
         for (size_t i = 0; i < N; i++) {
             x.data[i] += scalar;
         }
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static void sub(MathVector<MathType, N>& x, MathVector<MathType, N>& y) {
         for (size_t i = 0; i < N; i++) {
             x.data[i] -= y.data[i];
         }
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static void sub(MathVector<MathType, N>& x, MathType scalar) {
         for (size_t i = 0; i < N; i++) {
             x.data[i] -= scalar;
         }
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static void mul(MathVector<MathType, N>& x, MathVector<MathType, N>& y) {
         for (size_t i = 0; i < N; i++) {
             x.data[i] *= y.data[i];
         }
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static void mul(MathVector<MathType, N>& x, MathType scalar) {
         for (size_t i = 0; i < N; i++) {
             x.data[i] *= scalar;
         }
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static void div(MathVector<MathType, N>& x, MathVector<MathType, N>& y) {
         for (size_t i = 0; i < N; i++) {
             x.data[i] /= y.data[i];
         }
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static void div(MathVector<MathType, N>& x, MathType scalar) {
         for (size_t i = 0; i < N; i++) {
             x.data[i] /= scalar;
         }
     }
 
-    __host__ __device__
+    AMREX_GPU_HOST_DEVICE
     static void negate(MathVector<MathType, N>& v) {
         for (size_t i = 0; i < N; i++) {
             v.data[i] = -v.data[i];

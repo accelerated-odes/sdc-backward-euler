@@ -4,7 +4,7 @@
 
 class SparseGaussJordan {
 public:
-  __host__ __device__
+  AMREX_GPU_HOST_DEVICE
   static void solve(Real* A, Real* x, Real* b) {
     Real scratch_0 = 1.0/A[0];
     Real scratch_1 = b[0]*scratch_0;
