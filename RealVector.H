@@ -5,7 +5,6 @@
 #include <cassert>
 #include <cmath>
 #include "AMReX_REAL.H"
-#include "AMReX_CONSTANTS.H"
 #include "MathVector.H"
 
 using namespace amrex;
@@ -25,13 +24,13 @@ public:
   __host__ __device__
   static void inv(RealVector<N>& v) {
     for (size_t i = 0; i < N; i++) {
-      v.data[i] = one/v.data[i];
+      v.data[i] = 1.0/v.data[i];
     }
   }
 
   __host__ __device__
   static Real dot(RealVector<N>& x, RealVector<N>& y) {
-    Real sum = zero;
+    Real sum = 0.0;
     for (size_t i = 0; i < N; i++) {
       sum += x.data[i] * y.data[i];
     }
@@ -40,7 +39,7 @@ public:
 
   __host__ __device__
   static Real max_norm(RealVector<N>& v) {
-    Real max = zero;
+    Real max = 0.0;
     for (size_t i = 0; i < N; i++) {
       max = (fabs(v.data[i]) > max) ? fabs(v.data[i]) : max;
     }
@@ -49,9 +48,9 @@ public:
 
   __host__ __device__
   static Real wrms_norm(RealVector<N>& v, RealVector<N>& weights) {
-    Real sum = zero;
+    Real sum = 0.0;
     for (size_t i = 0; i < N; i++) {
-      sum += pow(v.data[i] * weights.data[i], two);
+      sum += pow(v.data[i] * weights.data[i], 2.0);
     }
     sum = sqrt(sum / N);
     return sum;
@@ -59,9 +58,9 @@ public:
 
   __host__ __device__
   static Real rms_norm(RealVector<N>& v) {
-    Real sum = zero;
+    Real sum = 0.0;
     for (size_t i = 0; i < N; i++) {
-      sum += pow(v.data[i], two);
+      sum += pow(v.data[i], 2.0);
     }
     sum = sqrt(sum / N);
     return sum;
@@ -69,9 +68,9 @@ public:
 
   __host__ __device__
   static Real frobenius_norm(RealVector<N>& v) {
-    Real sum = zero;
+    Real sum = 0.0;
     for (size_t i = 0; i < N; i++) {
-      sum += pow(v.data[i], two);
+      sum += pow(v.data[i], 2.0);
     }
     sum = sqrt(sum);
     return sum;
@@ -86,5 +85,4 @@ public:
     return xmin;
   }
 };
-
 #endif
