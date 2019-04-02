@@ -12,13 +12,11 @@ using namespace amrex;
 
 template<size_t N> class RealVector : public MathVector<Real,N> {
 public:
-  using MathVector<Real,N>::operator=;
   using MathVector<Real,N>::begin;
   using MathVector<Real,N>::end;
 
   virtual void print() {
     size_t i = 0;
-    //std::cout << std::scientific << std::setprecision(6);
     for (const auto& x : (*this)) {
       std::cout << x;
       if (i < N-1) std::cout << " ";
@@ -27,90 +25,75 @@ public:
   }
 
   __host__ __device__
-  RealVector<N>& abs() {
-    for (auto& x : *this) {
+  static void abs(RealVector<N>& v) {
+    for (auto& x : v) {
       x = fabs(x);
     }
-    return *this;
   }
 
   __host__ __device__
-  RealVector<N>& inv() {
-    for (auto& x : *this) {
+  static void inv(RealVector<N>& v) {
+    for (auto& x : v) {
       x = one/x;
     }
-    return *this;
   }
 
   __host__ __device__
-  Real dot(RealVector<N>& other) {
+  static Real dot(RealVector<N>& x, RealVector<N>& y) {
     Real sum = zero;
     for (size_t i = 0; i < N; i++) {
-      sum += (*this)[i] * other[i];
+      sum += x.data[i] * y.data[i];
     }
     return sum;
   }
 
   __host__ __device__
-  Real max_norm() {
+  static Real max_norm(RealVector<N>& v) {
     Real max = zero;
-    for (auto& x : *this) {
+    for (auto& x : v) {
       max = (fabs(x) > max) ? fabs(x) : max;
     }
     return max;
   }
 
   __host__ __device__
-  Real wrms_norm(RealVector<N>& weights) {
+  static Real wrms_norm(RealVector<N>& v, RealVector<N>& weights) {
     Real sum = zero;
     for (size_t i = 0; i < N; i++) {
-      sum += pow((*this)[i] * weights[i], two);
+      sum += pow(v.data[i] * weights.data[i], two);
     }
     sum = sqrt(sum / N);
     return sum;
   }
 
   __host__ __device__
-  Real rms_norm() {
+  static Real rms_norm(RealVector<N>& v) {
     Real sum = zero;
     for (size_t i = 0; i < N; i++) {
-      sum += pow((*this)[i], two);
+      sum += pow(v.data[i], two);
     }
     sum = sqrt(sum / N);
     return sum;
   }
 
   __host__ __device__
-  Real frobenius_norm() {
+  static Real frobenius_norm(RealVector<N>& v) {
     Real sum = zero;
     for (size_t i = 0; i < N; i++) {
-      sum += pow((*this)[i], two);
+      sum += pow(v.data[i], two);
     }
     sum = sqrt(sum);
     return sum;
   }
 
   __host__ __device__
-  Real min() {
-    Real xmin = (*this)[0];
-    for (auto& x : *this) {
+  static Real min(RealVector<N>& v) {
+    Real xmin = v.data[0];
+    for (auto& x : v) {
       xmin = (x < xmin) ? x : xmin;
     }
     return xmin;
   }
-
-  __host__ __device__
-  void sv_linear_combination(size_t num_elements, Real* scalars, RealVector<N>* vectors) {
-    // For scalars[i] and vectors[i], i = 0, ..., num_elements-1 :
-    // Set this vector rv as: rv = sum_{i = 0, num_elements-1} (scalars[i] * vectors[i])
-    for (size_t j = 0; j < N; j++) {
-      (*this)[j] = zero;
-      for (size_t i = 0; i < num_elements; i++) {
-	(*this)[j] += scalars[i] * vectors[i][j];
-      }
-    }
-  }
-
 };
 
 #endif

@@ -4,24 +4,27 @@
 #include <cassert>
 
 template<class MathType, size_t N> class MathVector {
-    MathType data[N];
 public:
+    MathType data[N];
+
+    __host__ __device__
     MathVector() {}
-    
+
+    __host__ __device__
     ~MathVector() {}
 
     __host__ __device__
-    MathType* begin() {
-        return data;
+    static MathType* begin(MathVector<MathType, N>& v) {
+        return v.data;
     }
 
     __host__ __device__
-    MathType* end() {
-        return data + N;
+    static MathType* end(MathVector<MathType, N>& v) {
+        return v.data + N;
     }
 
     __host__ __device__
-    MathType* dataPtr() {
+    static MathType* dataPtr(MathVector<MathType, N>& v) {
         return begin();
     }
 
@@ -35,101 +38,86 @@ public:
     }
 
     __host__ __device__
-    MathVector<MathType, N>& operator=(MathVector<MathType, N>& other) {
+    static void equals(MathVector<MathType, N>& destination,
+                       MathVector<MathType, N>& source) {
         for (size_t i = 0; i < N; i++) {
-            data[i] = other.data[i];
+            destination.data[i] = source.data[i];
         }
-        return *this;
     }
 
     __host__ __device__
-    MathVector<MathType, N>& operator=(MathType scalar) {
-        for (auto& x : *this) {
+    static void equals(MathVector<MathType, N>& destination, MathType scalar) {
+        for (auto& x : destination) {
             x = scalar;
         }
-        return *this;
     }
 
     __host__ __device__
-    MathType& operator[] (unsigned int i) {
-        assert(i >= 0 && i < N);
-        return *(data + i);
+    static MathType& element(MathVector<MathType, N>& v, unsigned int i) {
+        return v.data[i];
     }
 
     __host__ __device__
-    MathVector<MathType, N>& operator+(MathVector<MathType, N>& other) {
+    static void add(MathVector<MathType, N>& x, MathVector<MathType, N>& y) {
         for (size_t i = 0; i < N; i++) {
-            data[i] += other.data[i];
+            x.data[i] += y.data[i];
         }
-        return *this;
     }
 
     __host__ __device__
-    MathVector<MathType, N>& operator+(MathType x) {
+    static void add(MathVector<MathType, N>& x, MathType scalar) {
         for (size_t i = 0; i < N; i++) {
-            data[i] += x;
+            x.data[i] += scalar;
         }
-        return *this;
     }
 
     __host__ __device__
-    MathVector<MathType, N>& operator-(MathVector<MathType, N>& other) {
+    static void sub(MathVector<MathType, N>& x, MathVector<MathType, N>& y) {
         for (size_t i = 0; i < N; i++) {
-            data[i] -= other.data[i];
+            x.data[i] -= y.data[i];
         }
-        return *this;
     }
 
     __host__ __device__
-    MathVector<MathType, N>& operator-(MathType x) {
+    static void sub(MathVector<MathType, N>& x, MathType scalar) {
         for (size_t i = 0; i < N; i++) {
-            data[i] -= x;
+            x.data[i] -= scalar;
         }
-        return *this;
     }
 
     __host__ __device__
-    MathVector<MathType, N>& operator*(MathVector<MathType, N>& other) {
+    static void mul(MathVector<MathType, N>& x, MathVector<MathType, N>& y) {
         for (size_t i = 0; i < N; i++) {
-            data[i] *= other.data[i];
+            x.data[i] *= y.data[i];
         }
-        return *this;
     }
 
     __host__ __device__
-    MathVector<MathType, N>& operator*(MathType x) {
+    static void mul(MathVector<MathType, N>& x, MathType scalar) {
         for (size_t i = 0; i < N; i++) {
-            data[i] *= x;
+            x.data[i] *= scalar;
         }
-        return *this;
     }
 
     __host__ __device__
-    MathVector<MathType, N>& operator/(MathVector<MathType, N>& other) {
+    static void div(MathVector<MathType, N>& x, MathVector<MathType, N>& y) {
         for (size_t i = 0; i < N; i++) {
-            data[i] /= other.data[i];
+            x.data[i] /= y.data[i];
         }
-        return *this;
     }
 
     __host__ __device__
-    MathVector<MathType, N>& operator/(MathType x) {
+    static void div(MathVector<MathType, N>& x, MathType scalar) {
         for (size_t i = 0; i < N; i++) {
-            data[i] /= x;
+            x.data[i] /= scalar;
         }
-        return *this;
     }
 
     __host__ __device__
-    void negate() {
-        for (auto& x : *this) {
+    static void negate(MathVector<MathType, N>& v) {
+        for (auto& x : v) {
             x = -x;
         }
     }    
 };
-
-// template<class VectorType>
-// std::ostream& operator<<(std::ostream& output_stream, VectorType& vec) {
-//     vec.stream_vector(output_stream, vec);
-// }
 #endif
