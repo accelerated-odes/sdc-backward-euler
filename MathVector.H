@@ -28,14 +28,14 @@ public:
         return begin();
     }
 
-    virtual void print() {
-        size_t i = 0;
-        for (const auto& x : (*this)) {
-            std::cout << x;
-            if (i < N-1) std::cout << " ";
-            i++;
-        }
+  virtual void print() {
+    size_t i = 0;
+    for (size_t i = 0; i < N; i++) {
+      std::cout << this->data[i];
+      if (i < N-1) std::cout << " ";
+      i++;
     }
+  }
 
     __host__ __device__
     static void equals(MathVector<MathType, N>& destination,
@@ -45,12 +45,12 @@ public:
         }
     }
 
-    __host__ __device__
-    static void equals(MathVector<MathType, N>& destination, MathType scalar) {
-        for (auto& x : destination) {
-            x = scalar;
-        }
+  __host__ __device__
+  static void equals(MathVector<MathType, N>& destination, MathType scalar) {
+    for (size_t i = 0; i < N; i++) {
+      destination.data[i] = scalar;
     }
+  }
 
     __host__ __device__
     static MathType& element(MathVector<MathType, N>& v, unsigned int i) {
@@ -115,8 +115,8 @@ public:
 
     __host__ __device__
     static void negate(MathVector<MathType, N>& v) {
-        for (auto& x : v) {
-            x = -x;
+        for (size_t i = 0; i < N; i++) {
+            v.data[i] = -v.data[i];
         }
     }    
 };

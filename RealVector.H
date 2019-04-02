@@ -15,26 +15,17 @@ public:
   using MathVector<Real,N>::begin;
   using MathVector<Real,N>::end;
 
-  virtual void print() {
-    size_t i = 0;
-    for (const auto& x : (*this)) {
-      std::cout << x;
-      if (i < N-1) std::cout << " ";
-      i++;
-    }
-  }
-
   __host__ __device__
   static void abs(RealVector<N>& v) {
-    for (auto& x : v) {
-      x = fabs(x);
+    for (size_t i = 0; i < N; i++) {
+      v.data[i] = fabs(v.data[i]);
     }
   }
 
   __host__ __device__
   static void inv(RealVector<N>& v) {
-    for (auto& x : v) {
-      x = one/x;
+    for (size_t i = 0; i < N; i++) {
+      v.data[i] = one/v.data[i];
     }
   }
 
@@ -50,8 +41,8 @@ public:
   __host__ __device__
   static Real max_norm(RealVector<N>& v) {
     Real max = zero;
-    for (auto& x : v) {
-      max = (fabs(x) > max) ? fabs(x) : max;
+    for (size_t i = 0; i < N; i++) {
+      max = (fabs(v.data[i]) > max) ? fabs(v.data[i]) : max;
     }
     return max;
   }
@@ -89,8 +80,8 @@ public:
   __host__ __device__
   static Real min(RealVector<N>& v) {
     Real xmin = v.data[0];
-    for (auto& x : v) {
-      xmin = (x < xmin) ? x : xmin;
+    for (size_t i = 0; i < N; i++) {
+      xmin = (v.data[i] < xmin) ? v.data[i] : xmin;
     }
     return xmin;
   }
