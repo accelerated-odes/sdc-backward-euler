@@ -338,7 +338,7 @@ public:
 	// Set new timestep for 4th order error control
 	// Uses adaptive timestepping from Garcia, Eqs. 3.30, 3.31
 	Real dt_est = sdc.time_step * pow(fabs(sdc.newton_tolerance/sdc.newton_error), 0.2);
-	Real tnow = SdcIntClass::get_current_time(sdc);
+	Real tnow = sdc.time_nodes.data[sdc.number_nodes-1];
 	sdc.time_step = min(min(max(sdc.dt_control_S1 * dt_est, 
 				    sdc.time_step/sdc.dt_control_S2),
 				sdc.time_step * sdc.dt_control_S2),
