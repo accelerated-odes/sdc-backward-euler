@@ -1,5 +1,5 @@
-#ifndef SDC_INTEGRATOR_H
-#define SDC_INTEGRATOR_H
+#ifndef SDC_INTEGRATOR_HOST_H
+#define SDC_INTEGRATOR_HOST_H
 
 #include <iostream>
 #include <vector>
@@ -10,11 +10,11 @@
 #include "unified.H"
 #include "unified_vector.H"
 #include "WallTimer.H"
-#include "SdcIntegratorType.H"
+#include "SdcIntegrator.H"
 
 template<class SystemClass, size_t order>
 __global__
-void prepare_states_kernel(SdcIntegratorType<SystemClass, order>** states, size_t size) {
+void prepare_states_kernel(SdcIntegrator<SystemClass, order>** states, size_t size) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (tid < size) {
@@ -24,7 +24,7 @@ void prepare_states_kernel(SdcIntegratorType<SystemClass, order>** states, size_
 
 template<class SystemClass, size_t order>
 __global__
-void sdc_state_map_linear_system(SdcIntegratorType<SystemClass, order>** s,
+void sdc_state_map_linear_system(SdcIntegrator<SystemClass, order>** s,
 				 Real** A, Real** x, Real** b, size_t size) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -34,7 +34,7 @@ void sdc_state_map_linear_system(SdcIntegratorType<SystemClass, order>** s,
 
 template<class SystemClass, size_t order>
 __global__
-void update_states_kernel(SdcIntegratorType<SystemClass, order>** states, size_t size) {
+void update_states_kernel(SdcIntegrator<SystemClass, order>** states, size_t size) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (tid < size) {
@@ -45,21 +45,21 @@ void update_states_kernel(SdcIntegratorType<SystemClass, order>** states, size_t
 template<class SystemClass, size_t order>
 struct sdc_state_finished {
   __host__ __device__
-  bool operator()(SdcIntegratorType<SystemClass, order>* s) {
+  bool operator()(SdcIntegrator<SystemClass, order>* s) {
     return s->is_finished();
   }
 };
 
-template<class SystemClass> class SdcIntegrator : public WallTimer {
+template<class SystemClass> class SdcIntegratorHost : public WallTimer {
   size_t number_systems;
   static const size_t order = 4;
 
-  std::vector<SdcIntegratorType<SystemClass, order>*> states;
-  SdcIntegratorType<SystemClass, order>* state_memory;
+  std::vector<SdcIntegrator<SystemClass, order>*> states;
+  SdcIntegrator<SystemClass, order>* state_memory;
 
   SystemClass ode_system;
 
-  thrust::device_vector<SdcIntegratorType<SystemClass, order>*> batched_states;
+  thrust::device_vector<SdcIntegrator<SystemClass, order>*> batched_states;
   decltype(batched_states.end()) unfinished_end;
 
   size_t batched_size;
@@ -67,12 +67,12 @@ template<class SystemClass> class SdcIntegrator : public WallTimer {
   void initialize() {
     void* vp;
 
-    AMREX_GPU_SAFE_CALL(cudaMallocManaged(&vp, number_systems * sizeof(SdcIntegratorType<SystemClass, order>)))
-    state_memory = static_cast<SdcIntegratorType<SystemClass, order>*>(vp);
+    AMREX_GPU_SAFE_CALL(cudaMallocManaged(&vp, number_systems * sizeof(SdcIntegrator<SystemClass, order>)))
+    state_memory = static_cast<SdcIntegrator<SystemClass, order>*>(vp);
 
     for (size_t i = 0; i < number_systems; i++) {
-      SdcIntegratorType<SystemClass, order>* sdc_state = &state_memory[i];
-      new (sdc_state) SdcIntegratorType<SystemClass, order>(ode_system);
+      SdcIntegrator<SystemClass, order>* sdc_state = &state_memory[i];
+      new (sdc_state) SdcIntegrator<SystemClass, order>(ode_system);
       states.push_back(sdc_state);
     }
 
@@ -81,7 +81,7 @@ template<class SystemClass> class SdcIntegrator : public WallTimer {
 
 public:
 
-  SdcIntegrator(size_t nsystems) {
+  SdcIntegratorHost(size_t nsystems) {
     number_systems = nsystems;
     states.resize(0);
     batched_states.resize(0);
@@ -89,7 +89,7 @@ public:
     std::cout << "sdc integrator initialized" << std::endl;
   }
 
-  ~SdcIntegrator() {
+  ~SdcIntegratorHost() {
     if (number_systems > 0) {
       AMREX_GPU_SAFE_CALL(cudaFree(state_memory));
     }
@@ -143,7 +143,7 @@ public:
 	int nBlocks = static_cast<int>(ceil(((double) size)/
 					    ((double) nThreads)));
 
-	SdcIntegratorType<SystemClass,order>** s_pointers = thrust::raw_pointer_cast(&batched_states[0]);
+	SdcIntegrator<SystemClass,order>** s_pointers = thrust::raw_pointer_cast(&batched_states[0]);
 	Real** A_pointers = thrust::raw_pointer_cast(&solver_matrix_map_d[0]);
 	Real** x_pointers = thrust::raw_pointer_cast(&solver_solution_map_d[0]);
 	Real** b_pointers = thrust::raw_pointer_cast(&solver_vector_map_d[0]);
@@ -174,7 +174,7 @@ public:
     int nBlocks = static_cast<int>(ceil(((double) size)/
 					((double) nThreads)));
 
-    SdcIntegratorType<SystemClass, order>** s = thrust::raw_pointer_cast(&batched_states[0]);
+    SdcIntegrator<SystemClass, order>** s = thrust::raw_pointer_cast(&batched_states[0]);
 
     prepare_states_kernel<SystemClass, order><<<nBlocks, nThreads>>>(s, size);
 
@@ -190,7 +190,7 @@ public:
     int nBlocks = static_cast<int>(ceil(((double) size)/
 					((double) nThreads)));
 
-    SdcIntegratorType<SystemClass, order>** s = thrust::raw_pointer_cast(&batched_states[0]);
+    SdcIntegrator<SystemClass, order>** s = thrust::raw_pointer_cast(&batched_states[0]);
 
     update_states_kernel<SystemClass, order><<<nBlocks, nThreads>>>(s, size);
 
