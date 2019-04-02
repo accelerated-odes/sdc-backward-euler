@@ -21,11 +21,10 @@ template<class SparseLinearSolver, class SystemClass, size_t order> class SdcInt
   typedef RealSparseMatrix<SystemClass::neqs, SystemClass::nnz> SMat;
     
   static const size_t number_nodes = order - 1;
-  static const size_t maximum_steps = 1000000;
 
   SdcStatus status;
   size_t step_counter, sdc_counter, node_counter, newton_counter;
-  size_t maximum_newton;
+  size_t maximum_newton, maximum_steps;
   bool fail_if_maximum_newton;
 
   Real time_previous, time_target, time_step, newton_error, newton_tolerance, small;
@@ -47,31 +46,18 @@ public:
   __host__ __device__
   SdcIntegrator() {}
 
-  __host__ __device__    
-  SdcIntegrator(SystemClass& ode_system) {
-      SdcIntClass::set_jacobian_layout(*this, ode_system);
-  }
-
-  __host__ __device__    
-  SdcIntegrator(SystemClass& ode_system, RealVector<SystemClass::neqs>& y_init,
-                Real start_time, Real end_time, Real time_step_init,
-                Real tolerance = 1.0e-6, size_t max_newton_iters=100) {
-      SdcIntClass::set_jacobian_layout(*this, ode_system);
-      SdcIntClass::initialize(*this, y_init, start_time, end_time, time_step_init,
-                                                    tolerance, max_newton_iters);
-  }
-
     __host__ __device__    
     static void initialize(SdcIntClass& sdc,
                            RealVector<SystemClass::neqs>& y_init,
                            Real start_time, Real end_time, Real time_step_init = 0.0,
                            Real tolerance = 1.0e-6, size_t max_newton_iters=100,
-                           bool fail_if_max_newton = true) {
+                           bool fail_if_max_newton = true, 
+			   size_t max_steps = 1000000, Real epsilon = 2.5e-16) {
         sdc.y_new[0] = y_init;
         sdc.y_old[0] = y_init;
 
         sdc.time_previous = start_time;
-        sdc.time_nodes = sdc.time_previous;
+        RealVector<number_nodes>::equals(sdc.time_nodes, sdc.time_previous);
         sdc.time_target = end_time;
         sdc.time_step = (time_step_init == 0.0) ? (end_time-start_time)/10.0 : time_step_init;
 
@@ -83,11 +69,12 @@ public:
         sdc.fail_if_maximum_newton = fail_if_max_newton;
         sdc.maximum_newton = max_newton_iters;
         sdc.newton_tolerance = tolerance;
-        sdc.small = std::numeric_limits<Real>::epsilon();
+	sdc.maximum_steps = max_steps;
+        sdc.small = epsilon;
 
         for (size_t i = 0; i < sdc.number_nodes; i++) {
-            sdc.f_old[i] = 0.0;
-            if (i > 0) sdc.y_old[i] = 0.0;
+	  NReals::equals(sdc.f_old[i], 0.0);
+	  if (i > 0) NReals::equals(sdc.y_old[i], 0.0);
         }
 
         sdc.status = SdcStatus::StartTimestep;
@@ -139,7 +126,7 @@ public:
 
   __host__ __device__
   static Real get_previous_time(SdcIntClass& sdc) {
-    return sdc.time_nodes[sdc.node_counter-1];
+    return sdc.time_nodes.data[sdc.node_counter-1];
   }
 
   __host__ __device__
@@ -149,7 +136,7 @@ public:
 
   __host__ __device__
   static Real get_current_time(SdcIntClass& sdc) {
-    return sdc.time_nodes[sdc.node_counter];
+    return sdc.time_nodes.data[sdc.node_counter];
   }
 
   __host__ __device__
@@ -195,7 +182,7 @@ public:
     NReals::add(sdc.y_new[sdc.node_counter], sdc.y_delta);
     Real delta_norm = NReals::frobenius_norm(sdc.y_delta);
     
-    sdc.newton_error = sdc.delta_norm/(NReals::max_norm(sdc.y_new[sdc.node_counter]) + sdc.small);
+    sdc.newton_error = delta_norm/(NReals::max_norm(sdc.y_new[sdc.node_counter]) + sdc.small);
   }
 
   __host__ __device__
@@ -210,9 +197,9 @@ public:
       // Check if we are finished with all nodes in this step
       if (sdc.node_counter == sdc.number_nodes-1) {
 	// Check if we are finished with all SDC iterations
-	if (sdc.sdc_counter == sdc.order) {
+	if (sdc.sdc_counter == order) {
 	  // Check if we have reached the stop time or max timesteps
-	  if (fabs(sdc.time_nodes[sdc.number_nodes-1] - sdc.time_target) < 2.0*sdc.small) {
+	  if (fabs(sdc.time_nodes.data[sdc.number_nodes-1] - sdc.time_target) < 2.0*sdc.small) {
 	    // We have reached the stop time successfully
           new_status = SdcStatus::Completed;
 	  } else {
@@ -228,7 +215,7 @@ public:
 	new_status = SdcStatus::StartNode;
       }
     } else {
-      if (newton_counter == maximum_newton)
+      if (sdc.newton_counter == sdc.maximum_newton)
 	// Newton iteration has failed
 	new_status = SdcStatus::Failed;
       else
@@ -243,7 +230,7 @@ public:
   __host__ __device__
   static void evaluate_system(SdcIntClass& sdc) {
     // Evaluate F and Jac at y_new to set f_new and j_new
-    SystemClass::evaluate(sdc.time_nodes[sdc.node_counter], sdc.y_new[sdc.node_counter],
+    SystemClass::evaluate(sdc.time_nodes.data[sdc.node_counter], sdc.y_new[sdc.node_counter],
                           sdc.f_new[sdc.node_counter], sdc.j_new);
   }
 
@@ -253,7 +240,7 @@ public:
     // Puts A into j_new in-place and puts b into implicit_rhs.
 
     // Form the matrix A:
-    SMat::mul(sdc.j_new, sdc.time_nodes[sdc.node_counter-1] - sdc.time_nodes[sdc.node_counter]);
+    SMat::mul(sdc.j_new, sdc.time_nodes.data[sdc.node_counter-1] - sdc.time_nodes.data[sdc.node_counter]);
     for (size_t i = 0; i < SystemClass::neqs; i++) {
         SMat::ij(sdc.j_new, i, i) += 1.0;
     }
@@ -292,7 +279,7 @@ public:
     else
       // integral from m = 1 to m = 2
       for (size_t i = 0; i < SystemClass::neqs; i++) {
-          sdc.q_node.data[i] = (sdc.time_nodes[1] - sdc.time_nodes[0])/12.0;
+          sdc.q_node.data[i] = (sdc.time_nodes.data[1] - sdc.time_nodes.data[0])/12.0;
           sdc.q_node.data[i] *= (-sdc.f_old[0].data[i] + 8.0e0*sdc.f_old[1].data[i] + 5.0e0*sdc.f_old[2].data[i]);
       }
   }
@@ -341,7 +328,7 @@ public:
         NReals::equals(sdc.f_new[0], sdc.f_old[0]);
     } else {
       // Evaluate the system at y_old and set y_old and f_old for nodes
-      SystemClass::evaluate(time_nodes[0], y_old[0], f_old[0]);
+      SystemClass::evaluate(sdc.time_nodes.data[0], sdc.y_old[0], sdc.f_old[0]);
     }
 
     for (size_t i = 1; i < number_nodes; i++) {

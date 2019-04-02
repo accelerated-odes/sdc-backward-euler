@@ -13,6 +13,7 @@ public:
     IntegerVector<nnz> csr_col_index;
     IntegerVector<neqs+1> csr_row_count;
 
+    __host__ __device__
     VodeSystem() {
         csr_col_index.data[0] = 0;
         csr_col_index.data[1] = 1;

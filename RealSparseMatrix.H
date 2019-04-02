@@ -52,19 +52,19 @@ public:
                                IntegerVector<NNZ>& input_col_index,
                                IntegerVector<N+1>& input_row_count) {
         IntegerVector<NNZ>::equals(ml.col_index, input_col_index);
-        IntegerVector<N+1>::equals(ml.row_count = input_row_count);
+        IntegerVector<N+1>::equals(ml.row_count, input_row_count);
     }
 
     __host__ __device__
     static int lookup_csr_location(RealSparseMatrix<N,NNZ>& ml,
                                    size_t irow, size_t icol) {
-        int num_in_row = ml.row_count[irow+1] - ml.row_count[irow];
-        int row_start_loc = ml.row_count[irow];
+        int num_in_row = ml.row_count.data[irow+1] - ml.row_count.data[irow];
+        int row_start_loc = ml.row_count.data[irow];
         int row_end_loc = row_start_loc + num_in_row - 1;
 
         int csr_loc = -1;
         for (int i = row_start_loc; i <= row_end_loc; i++) {
-            if (IntegerVector<NNZ>::element(ml.col_index, i) == icol) {
+            if (ml.col_index.data[i] == icol) {
                 csr_loc = i;
                 break;
             }

@@ -8,9 +8,11 @@
 
 template<class SparseLinearSolver, class SystemClass, size_t order>
 __global__
-void do_sdc_kernel(Real* y_initial, Real* y_final, Real start_time, Real end_time, Real start_timestep,
-                   Real tolerance, size_t maximum_newton_iters, bool fail_if_maximum_newton,
-                   size_t size) {
+void do_sdc_kernel(Real* y_initial, Real* y_final, 
+		   Real start_time, Real end_time, Real start_timestep,
+                   Real tolerance, size_t maximum_newton_iters, 
+		   bool fail_if_maximum_newton, Real maximum_steps,
+		   Real epsilon, size_t size) {
     typedef SdcIntegrator<SparseLinearSolver,SystemClass,order> SdcIntClass;
     size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -25,10 +27,13 @@ void do_sdc_kernel(Real* y_initial, Real* y_final, Real start_time, Real end_tim
     }
 
     SdcIntClass::set_jacobian_layout(sdc, ode_system);
-    SdcIntClass::initialize(sdc, y_ini, start_time, end_time, start_timestep,
-                            tolerance, maximum_newton_iters, fail_if_maximum_newton);
+    SdcIntClass::initialize(sdc, y_ini, 
+			    start_time, end_time, start_timestep,
+                            tolerance, maximum_newton_iters, 
+			    fail_if_maximum_newton, maximum_steps,
+			    epsilon);
 
-    for (size_t i = 0; i < SdcIntClass::maximum_steps; i++) {
+    for (size_t i = 0; i < maximum_steps; i++) {
         SdcIntClass::prepare(sdc);
         SdcIntClass::solve(sdc);
         SdcIntClass::update(sdc);
@@ -77,7 +82,9 @@ int main(int argc, char* argv[]) {
     Real start_timestep = (end_time - start_time)/10.0;
     Real tolerance = 1.0e-6;
     size_t maximum_newton_iters = 100;
+    size_t maximum_steps = 1000000;
     bool fail_if_maximum_newton = true;
+    Real epsilon = std::numeric_limits<Real>::epsilon();
 
     const int nThreads = 32;
     const int WarpBatchSize = 32;
@@ -87,13 +94,13 @@ int main(int argc, char* argv[]) {
 
     timer.start_wallclock();
 
-    do_sdc_kernel<SparseGaussJordan, VodeSystem, order><<<nBlocks, nThreads>>>(y_initial, y_final,
-                                                                               start_time, end_time,
-                                                                               start_timestep,
-                                                                               tolerance,
-                                                                               maximum_newton_iters,
-                                                                               fail_if_maximum_newton,
-                                                                               num_systems);
+    do_sdc_kernel<SparseGaussJordan, 
+		  VodeSystem, 
+		  order><<<nBlocks, nThreads>>>(y_initial, y_final,
+						start_time, end_time, start_timestep,
+						tolerance, maximum_newton_iters,
+						fail_if_maximum_newton, maximum_steps,
+						epsilon, num_systems);
 
     cuda_status = cudaDeviceSynchronize();
     assert(cuda_status == cudaSuccess);
@@ -105,7 +112,7 @@ int main(int argc, char* argv[]) {
         std::cout << "y_final[" << i << "]: " << std::endl;
         std::cout << " ";
         for (size_t j = 0; j < VodeSystem::neqs; j++) {
-            std::cout << y_final[i + j];
+	  std::cout << y_final[i + j] << " ";
         }
         std::cout << std::endl;
     }
