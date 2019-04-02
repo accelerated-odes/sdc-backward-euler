@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
 
   cudaProfilerStart();
 
-  size_t num_systems = 1000000;
+  size_t num_systems = 2100000;
   const size_t order = 4;
 
   WallTimer timer;
