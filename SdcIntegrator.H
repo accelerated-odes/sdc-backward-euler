@@ -51,18 +51,19 @@ template<class SparseLinearSolver, class SystemClass, size_t order> class SdcInt
 
 public:
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   SdcIntegrator() {}
 
-    AMREX_GPU_HOST_DEVICE    
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE    
     static void initialize(SdcIntClass& sdc,
                            RealVector<SystemClass::neqs>& y_init,
                            Real start_time, Real end_time, Real time_step_init = 0.0,
                            Real tolerance = 1.0e-6, size_t max_newton_iters=100,
                            bool fail_if_max_newton = true, 
 			   size_t max_steps = 1000000, Real epsilon = 2.5e-16) {
-        sdc.y_new[0] = y_init;
-        sdc.y_old[0] = y_init;
+
+      NReals::equals(sdc.y_new[0], y_init);
+      NReals::equals(sdc.y_old[0], y_init);
 
         sdc.time_previous = start_time;
         RealVector<number_nodes>::equals(sdc.time_nodes, sdc.time_previous);
@@ -88,14 +89,14 @@ public:
         sdc.status = SdcStatus::StartTimestep;
     }
 
-  AMREX_GPU_HOST_DEVICE    
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE    
   static void set_jacobian_layout(SdcIntClass& sdc, SystemClass& ode_system) {
       RealSparseMatrix<SystemClass::neqs, SystemClass::nnz>::set_csr_layout(sdc.j_new,
                                                                             ode_system.csr_col_index,
                                                                             ode_system.csr_row_count);
   }
 
-  AMREX_GPU_HOST_DEVICE    
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE    
   ~SdcIntegrator() {}
 
   void print() {
@@ -127,27 +128,27 @@ public:
     }
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static RealVector<SystemClass::neqs>& get_previous_solution(SdcIntClass& sdc) {
     return sdc.y_new[sdc.node_counter-1];
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static Real get_previous_time(SdcIntClass& sdc) {
     return sdc.time_nodes.data[sdc.node_counter-1];
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static RealVector<SystemClass::neqs>& get_current_solution(SdcIntClass& sdc) {
     return sdc.y_new[sdc.node_counter];
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static Real get_current_time(SdcIntClass& sdc) {
     return sdc.time_nodes.data[sdc.node_counter];
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void prepare(SdcIntClass& sdc) {
     // Set up the solve
     if (sdc.status == SdcStatus::StartTimestep) {
@@ -170,18 +171,18 @@ public:
     SdcIntClass::setup_linear_system(sdc);
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void solve(SdcIntClass& sdc) {
       SparseLinearSolver::solve(sdc.j_new.data, sdc.y_delta.data, sdc.implicit_rhs.data);
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void update(SdcIntClass& sdc) {
       SdcIntClass::update_solution(sdc);
       SdcIntClass::update_status(sdc);
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void update_solution(SdcIntClass& sdc) {
     // Use the results of the previous solve to check status
     // and update integration state & status
@@ -193,7 +194,7 @@ public:
     sdc.newton_error = delta_norm/(NReals::max_norm(sdc.y_new[sdc.node_counter]) + sdc.small);
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void update_status(SdcIntClass& sdc) {
     SdcStatus new_status;
 
@@ -235,14 +236,14 @@ public:
     SdcIntClass::set_status(sdc, new_status);
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void evaluate_system(SdcIntClass& sdc) {
     // Evaluate F and Jac at y_new to set f_new and j_new
     SystemClass::evaluate(sdc.time_nodes.data[sdc.node_counter], sdc.y_new[sdc.node_counter],
                           sdc.f_new[sdc.node_counter], sdc.j_new);
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void setup_linear_system(SdcIntClass& sdc) {
     // Set up the linear system A*x = b to solve.
     // Puts A into j_new in-place and puts b into implicit_rhs.
@@ -261,17 +262,17 @@ public:
     }
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static bool is_finished(SdcIntClass& sdc) {
     return (sdc.status == SdcStatus::Completed || sdc.status == SdcStatus::Failed);
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static bool is_started(SdcIntClass& sdc) {
     return (sdc.step_counter > 0 || sdc.sdc_counter > 1 || sdc.node_counter > 1 || sdc.newton_counter > 0);
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void evaluate_quadrature(SdcIntClass& sdc) {
     // Use high order quadrature rule to set q_node
 
@@ -292,7 +293,7 @@ public:
       }
   }
 
-    AMREX_GPU_HOST_DEVICE
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE
     static void set_status(SdcIntClass& sdc, SdcStatus new_status) {
         sdc.status = new_status;
         if (SdcIntClass::is_finished(sdc)) return;
@@ -324,7 +325,7 @@ public:
         }
     }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void initialize_nodes(SdcIntClass& sdc) {
     // If we are advancing the step, then move y_old forward
     // along with time_previous
@@ -360,7 +361,7 @@ public:
     }
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void save_sdc_iteration(SdcIntClass& sdc) {
     for (size_t i = 1; i < sdc.number_nodes; i++) {
         NReals::equals(sdc.y_old[i], sdc.y_new[i]);
@@ -368,7 +369,7 @@ public:
     }
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void guess_new_solution(SdcIntClass& sdc) {
     if (sdc.sdc_counter > 1)
         NReals::equals(sdc.y_new[sdc.node_counter], sdc.y_old[sdc.node_counter]);

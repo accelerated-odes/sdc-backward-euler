@@ -5,6 +5,8 @@
 #include <cassert>
 #include <iostream>
 #include "unified.H"
+#include "AMReX_GpuQualifiers.H"
+#include "AMReX_Extension.H"
 
 template<class T> class UnifiedVector : public UnifiedMemoryClass {
 
@@ -27,24 +29,24 @@ public:
         assert(cuda_status == cudaSuccess);
     }
 
-    AMREX_GPU_HOST_DEVICE T* dataPtr() {
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE T* dataPtr() {
         return begin();
     }
 
-    AMREX_GPU_HOST_DEVICE T* begin() {
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE T* begin() {
         return data_ptr;
     }
 
-    AMREX_GPU_HOST_DEVICE T* end() {
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE T* end() {
         return data_ptr + filled_size;
     }
 
-    AMREX_GPU_HOST_DEVICE T& operator[] (unsigned int i) {
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE T& operator[] (unsigned int i) {
         // need to check this isn't OOB!!
         return *(data_ptr + i);
     }
 
-    AMREX_GPU_HOST_DEVICE
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE
     UnifiedVector<T>& operator=(UnifiedVector<T>& other) {
 #ifdef __CUDA_ARCH__
         assert(other.filled_size <= this->allocated_size);
@@ -58,7 +60,7 @@ public:
         return *this;
     }
 
-    AMREX_GPU_HOST_DEVICE T* get_pointer_to (unsigned int i) {
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE T* get_pointer_to (unsigned int i) {
         return (data_ptr + i);
     }
 
@@ -88,7 +90,7 @@ public:
         }
     }
 
-    AMREX_GPU_HOST_DEVICE size_t size() {
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE size_t size() {
         return filled_size;
     }
 };

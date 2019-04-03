@@ -14,21 +14,21 @@ public:
   using MathVector<Real,N>::begin;
   using MathVector<Real,N>::end;
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void abs(RealVector<N>& v) {
     for (size_t i = 0; i < N; i++) {
       v.data[i] = fabs(v.data[i]);
     }
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void inv(RealVector<N>& v) {
     for (size_t i = 0; i < N; i++) {
       v.data[i] = 1.0/v.data[i];
     }
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static Real dot(RealVector<N>& x, RealVector<N>& y) {
     Real sum = 0.0;
     for (size_t i = 0; i < N; i++) {
@@ -37,7 +37,7 @@ public:
     return sum;
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static Real max_norm(RealVector<N>& v) {
     Real max = 0.0;
     for (size_t i = 0; i < N; i++) {
@@ -46,7 +46,7 @@ public:
     return max;
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static Real wrms_norm(RealVector<N>& v, RealVector<N>& weights) {
     Real sum = 0.0;
     for (size_t i = 0; i < N; i++) {
@@ -56,7 +56,7 @@ public:
     return sum;
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static Real rms_norm(RealVector<N>& v) {
     Real sum = 0.0;
     for (size_t i = 0; i < N; i++) {
@@ -66,7 +66,7 @@ public:
     return sum;
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static Real frobenius_norm(RealVector<N>& v) {
     Real sum = 0.0;
     for (size_t i = 0; i < N; i++) {
@@ -76,7 +76,7 @@ public:
     return sum;
   }
 
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static Real min(RealVector<N>& v) {
     Real xmin = v.data[0];
     for (size_t i = 0; i < N; i++) {

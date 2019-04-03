@@ -13,7 +13,7 @@ public:
     IntegerVector<nnz> csr_col_index;
     IntegerVector<neqs+1> csr_row_count;
 
-    AMREX_GPU_HOST_DEVICE
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE
     VodeSystem() {
         csr_col_index.data[0] = 0;
         csr_col_index.data[1] = 1;
@@ -30,14 +30,14 @@ public:
         csr_row_count.data[3] = 8;
     }
 
-    AMREX_GPU_HOST_DEVICE
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE
     static void evaluate(Real time, RealVector<neqs>& y, RealVector<neqs>& rhs) {
         rhs.data[0] = -0.04 * y.data[0] + 1.e4 * y.data[1] * y.data[2];
         rhs.data[1] =  0.04 * y.data[0] - 1.e4 * y.data[1] * y.data[2] - 3.e7 * y.data[1] * y.data[1];
         rhs.data[2] =  3.e7 * y.data[1] * y.data[1];
     }    
 
-    AMREX_GPU_HOST_DEVICE
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE
     static void evaluate(Real time, RealVector<neqs>& y, RealVector<neqs>& rhs,
                          RealSparseMatrix<neqs,nnz>& jac) {
         rhs.data[0] = -0.04 * y.data[0] + 1.e4 * y.data[1] * y.data[2];

@@ -44,7 +44,7 @@ void update_states_kernel(SdcIntegrator<SystemClass, order>** states, size_t siz
 
 template<class SystemClass, size_t order>
 struct sdc_state_finished {
-  AMREX_GPU_HOST_DEVICE
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   bool operator()(SdcIntegrator<SystemClass, order>* s) {
     return s->is_finished();
   }
