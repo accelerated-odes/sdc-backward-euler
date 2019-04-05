@@ -7,8 +7,6 @@
 #include "SparseLinearSolver.H"
 #include "AMReX_REAL.H"
 #include "AMReX_GpuError.H"
-#include "unified.H"
-#include "unified_vector.H"
 #include "WallTimer.H"
 #include "SdcIntegrator.H"
 
