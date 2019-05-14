@@ -34,6 +34,7 @@ template<class SparseLinearSolver, class SystemClass, size_t order> class SdcInt
   size_t step_counter, sdc_counter, node_counter, newton_counter;
   size_t maximum_newton, maximum_steps;
   bool fail_if_maximum_newton;
+  bool use_adaptive_timestep;
 
   Real time_previous, time_target, time_step, newton_error, newton_tolerance, small;
   RealVector<number_nodes> time_nodes;
@@ -60,7 +61,8 @@ public:
                            Real start_time, Real end_time, Real time_step_init = 0.0,
                            Real tolerance = 1.0e-6, size_t max_newton_iters=100,
                            bool fail_if_max_newton = true, 
-			   size_t max_steps = 1000000, Real epsilon = 2.5e-16) {
+			   size_t max_steps = 1000000, Real epsilon = 2.5e-16,
+			   bool use_adaptive_timestep = true) {
 
       NReals::equals(sdc.y_new[0], y_init);
       NReals::equals(sdc.y_old[0], y_init);
@@ -69,6 +71,7 @@ public:
         RealVector<number_nodes>::equals(sdc.time_nodes, sdc.time_previous);
         sdc.time_target = end_time;
         sdc.time_step = (time_step_init == 0.0) ? (end_time-start_time)/10.0 : time_step_init;
+	sdc.use_adaptive_timestep = use_adaptive_timestep;
 
         sdc.step_counter = 0;
         sdc.sdc_counter = 1;
@@ -335,15 +338,19 @@ public:
         NReals::equals(sdc.f_old[0], sdc.f_new[number_nodes-1]);
         NReals::equals(sdc.y_new[0], sdc.y_old[0]);
         NReals::equals(sdc.f_new[0], sdc.f_old[0]);
-	
-	// Set new timestep for 4th order error control
-	// Uses adaptive timestepping from Garcia, Eqs. 3.30, 3.31
-	Real dt_est = sdc.time_step * pow(fabs(sdc.newton_tolerance/sdc.newton_error), 0.2);
+
 	Real tnow = sdc.time_nodes.data[sdc.number_nodes-1];
-	sdc.time_step = min(min(max(sdc.dt_control_S1 * dt_est, 
-				    sdc.time_step/sdc.dt_control_S2),
-				sdc.time_step * sdc.dt_control_S2),
-			    sdc.time_target - tnow);
+	if (sdc.use_adaptive_timestep) {
+	  // Set new timestep for 4th order error control
+	  // Uses adaptive timestepping from Garcia, Eqs. 3.30, 3.31
+	  Real dt_est = sdc.time_step * pow(fabs(sdc.newton_tolerance/sdc.newton_error), 0.2);
+	  sdc.time_step = min(min(max(sdc.dt_control_S1 * dt_est, 
+				      sdc.time_step/sdc.dt_control_S2),
+				  sdc.time_step * sdc.dt_control_S2),
+			      sdc.time_target - tnow);
+	} else {
+	  sdc.time_step = min(sdc.time_step, sdc.time_target - tnow);
+	}
     } else {
       // Evaluate the system at y_old and set y_old and f_old for nodes
       SystemClass::evaluate(sdc.time_nodes.data[0], sdc.y_old[0], sdc.f_old[0]);
