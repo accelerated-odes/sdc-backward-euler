@@ -5,7 +5,7 @@
 
 template<size_t N> class IntegerVector : public MathVector<int, N> {
 public:
-  using MathVector<int, N>::equals;
+  using MathVector<int, N>::operator=;
 };
 
 #endif

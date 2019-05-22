@@ -4,122 +4,181 @@
 #include <cassert>
 #include "AMReX_GpuQualifiers.H"
 #include "AMReX_Extension.H"
+#include "VectorGpuMacros.H"
 
-template<class MathType, size_t N> class MathVector {
+template<class MathType, size_t Nvec> class MathVector {
 public:
-    MathType data[N];
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    MathVector() {}
+  using MV = MathVector<MathType, Nvec>;
+  
+  MathType data[Nvec];
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    ~MathVector() {}
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MathVector() {}
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static MathType* begin(MathVector<MathType, N>& v) {
-        return v.data;
-    }
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  ~MathVector() {}
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static MathType* end(MathVector<MathType, N>& v) {
-        return v.data + N;
-    }
+  // begin() and end() are iterators for sets
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MathType* begin() {
+    return data;
+  }
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static MathType* dataPtr(MathVector<MathType, N>& v) {
-        return begin();
-    }
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MathType* end() {
+    return data + Nvec;
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MathType* dataPtr() {
+    return begin();
+  }
 
   virtual void print() {
     size_t i = 0;
-    for (size_t i = 0; i < N; i++) {
+    for (size_t i = 0; i < Nvec; i++) {
       std::cout << this->data[i];
-      if (i < N-1) std::cout << " ";
+      if (i < Nvec - 1) std::cout << " ";
       i++;
     }
+  }  
+  
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MV& operator=(MV& source) {
+    VECTOR_LAMBDA(Nvec,
+                  [&](size_t& i) {
+                    data[i] = source[i];
+                  });
+    return *this;
   }
-
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static void equals(MathVector<MathType, N>& destination,
-                       MathVector<MathType, N>& source) {
-        for (size_t i = 0; i < N; i++) {
-            destination.data[i] = source.data[i];
-        }
-    }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  static void equals(MathVector<MathType, N>& destination, MathType scalar) {
-    for (size_t i = 0; i < N; i++) {
-      destination.data[i] = scalar;
-    }
+  MV& operator=(MathType scalar) {
+    VECTOR_LAMBDA(Nvec,
+                  [&](size_t& i) {
+                    data[i] = scalar;
+                  });
+    return *this;
   }
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static MathType& element(MathVector<MathType, N>& v, unsigned int i) {
-        return v.data[i];
-    }
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MV& load(MathType* array, size_t array_max_size) {
+    VECTOR_LAMBDA(Nvec,
+                  [&](size_t& i) {
+                     #ifdef __CUDA_ARCH__
+                       size_t k = i + Nvec * blockIdx.x;
+                       if (k < array_max_size)
+                         data[i] = array[k];
+                     #else
+                       if (i < array_max_size)
+                         data[i] = array[i];
+                     #endif
+                  });
+    return *this;
+  }
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static void add(MathVector<MathType, N>& x, MathVector<MathType, N>& y) {
-        for (size_t i = 0; i < N; i++) {
-            x.data[i] += y.data[i];
-        }
-    }
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MV& save(MathType* array, size_t array_max_size) {
+    VECTOR_LAMBDA(Nvec,
+                  [&](size_t& i) {
+                     #ifdef __CUDA_ARCH__
+                       size_t k = i + Nvec * blockIdx.x;
+                       if (k < array_max_size)
+                         array[k] = data[i];
+                     #else
+                       if (i < array_max_size)
+                         array[i] = data[i];
+                     #endif
+                  });
+    return *this;
+  }
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static void add(MathVector<MathType, N>& x, MathType scalar) {
-        for (size_t i = 0; i < N; i++) {
-            x.data[i] += scalar;
-        }
-    }
+  // The indexing operator returns the indexed entry
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MathType& operator[](unsigned int i) {
+    return data[i];
+  }
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static void sub(MathVector<MathType, N>& x, MathVector<MathType, N>& y) {
-        for (size_t i = 0; i < N; i++) {
-            x.data[i] -= y.data[i];
-        }
-    }
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MV& operator+=(MV& y) {
+    VECTOR_LAMBDA(Nvec,
+                  [&](size_t& i) {
+                    data[i] += y[i];
+                  });
+    return *this;
+  }
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static void sub(MathVector<MathType, N>& x, MathType scalar) {
-        for (size_t i = 0; i < N; i++) {
-            x.data[i] -= scalar;
-        }
-    }
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MV& operator+=(MathType scalar) {
+    VECTOR_LAMBDA(Nvec,
+                  [&](size_t& i) {
+                    data[i] += scalar;
+                  });
+    return *this;
+  }
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static void mul(MathVector<MathType, N>& x, MathVector<MathType, N>& y) {
-        for (size_t i = 0; i < N; i++) {
-            x.data[i] *= y.data[i];
-        }
-    }
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MV& operator-=(MV& y) {
+    VECTOR_LAMBDA(Nvec,
+                  [&](size_t& i) {
+                    data[i] -= y[i];
+                  });
+    return *this;
+  }
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static void mul(MathVector<MathType, N>& x, MathType scalar) {
-        for (size_t i = 0; i < N; i++) {
-            x.data[i] *= scalar;
-        }
-    }
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MV& operator-=(MathType scalar) {
+    VECTOR_LAMBDA(Nvec,
+                  [&](size_t& i) {
+                    data[i] -= scalar;
+                  });
+    return *this;
+  }
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static void div(MathVector<MathType, N>& x, MathVector<MathType, N>& y) {
-        for (size_t i = 0; i < N; i++) {
-            x.data[i] /= y.data[i];
-        }
-    }
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MV& operator*=(MV& y) {
+    VECTOR_LAMBDA(Nvec,
+                  [&](size_t& i) {
+                    data[i] *= y[i];
+                  });
+    return *this;
+  }
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static void div(MathVector<MathType, N>& x, MathType scalar) {
-        for (size_t i = 0; i < N; i++) {
-            x.data[i] /= scalar;
-        }
-    }
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MV& operator*=(MathType scalar) {
+    VECTOR_LAMBDA(Nvec,
+                  [&](size_t& i) {
+                    data[i] *= scalar;
+                  });
+    return *this;
+  }
 
-    AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    static void negate(MathVector<MathType, N>& v) {
-        for (size_t i = 0; i < N; i++) {
-            v.data[i] = -v.data[i];
-        }
-    }    
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MV& operator/=(MV& y) {
+    VECTOR_LAMBDA(Nvec,
+                  [&](size_t& i) {
+                    data[i] /= y[i];
+                  });
+    return *this;
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MV& operator/=(MathType scalar) {
+    VECTOR_LAMBDA(Nvec,
+                  [&](size_t& i) {
+                    data[i] /= scalar;
+                  });
+    return *this;
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MV& negate() {
+    VECTOR_LAMBDA(Nvec,
+                  [&](size_t& i) {
+                    data[i] = -data[i];
+                  });
+    return *this;
+  }
 };
 #endif
