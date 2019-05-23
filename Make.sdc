@@ -1,8 +1,6 @@
 AMREX_HOME ?= /path/to/amrex
 ODE_SDC_HOME ?= /path/to/here
 
-USE_VERBOSE_DEBUG ?= FALSE
-
 # default is to compile with CUDA
 USE_CUDA ?= FALSE
 
@@ -23,9 +21,7 @@ EXTERN_CORE ?=
 # Preprocessor Definitions
 #------------------------------------------------------------------------------
 
-ifeq ($(USE_VERBOSE_DEBUG), TRUE)
-  DEFINES += -DVERBOSE_DEBUG
-endif
+# DEFINES += -D[name]
 
 #------------------------------------------------------------------------------
 # Standard AMReX Build Definitions
