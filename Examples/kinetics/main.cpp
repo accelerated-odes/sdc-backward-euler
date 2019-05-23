@@ -110,7 +110,7 @@ int main(int argc, char* argv[]) {
   cudaProfilerStart();
 #endif
 
-  size_t grid_size = 32;
+  size_t grid_size = 16;
 
   size_t num_systems = grid_size * grid_size * grid_size;
 

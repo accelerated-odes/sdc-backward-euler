@@ -36,6 +36,7 @@ all: $(executable)
 # Directories
 #------------------------------------------------------------------------------
 
+Bdirs := Source
 Bpack += $(foreach dir, $(Bdirs), $(TOP)/$(dir)/Make.package)
 Blocs += $(foreach dir, $(Bdirs), $(TOP)/$(dir))
 
