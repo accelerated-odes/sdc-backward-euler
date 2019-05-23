@@ -4,7 +4,11 @@
 #include <iomanip>
 #include <cassert>
 #include <cmath>
+
+#ifdef AMREX_USE_CUDA
 #include "cuda_runtime.h"
+#endif
+
 #include "VectorGpuMacros.H"
 #include "AMReX_REAL.H"
 #include "MathVectorSet.H"

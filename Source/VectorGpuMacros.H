@@ -46,6 +46,13 @@
 // At the moment, without CUDA, these macros reduce
 // to serial loops and lambda function calls.
 // We could use OpenMP, alternately.
+#define VECTOR_SET_LAMBDA(Nset, Nvec, lambda) ({        \
+    for (size_t iset = 0; iset < Nset; iset++) {        \
+      for (size_t ivec = 0; ivec < Nvec; ivec++) {      \
+        lambda(iset, ivec);                             \
+      }                                                 \
+    }                                                   \
+  })
 #define VECTOR_LAMBDA(N, lambda) ({                     \
     for (size_t i = 0; i < N; i++)                      \
       lambda(i);                                        \

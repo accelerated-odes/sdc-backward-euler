@@ -66,14 +66,22 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& load(MathType* array, size_t array_max_size) {
     for (size_t i = 0; i < Nset; i++)
+#ifdef AMREX_USE_CUDA
       data[i].load(&array[i * Nvec * blockDim.x], array_max_size);
+#else
+      data[i].load(&array[i * Nvec], array_max_size);
+#endif
     return *this;
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& save(MathType* array, size_t array_max_size) {
     for (size_t i = 0; i < Nset; i++)
+#ifdef AMREX_USE_CUDA
       data[i].save(&array[i * Nvec * blockDim.x], array_max_size);
+#else
+      data[i].save(&array[i * Nvec], array_max_size);
+#endif
     return *this;
   }
 
