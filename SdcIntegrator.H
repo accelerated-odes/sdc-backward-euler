@@ -6,7 +6,9 @@
 #include "math.h"
 #include "AMReX_REAL.H"
 #include "RealVector.H"
+#include "RealVectorSet.H"
 #include "RealSparseMatrix.H"
+#include "VectorGpuMacros.H"
 
 #ifndef AMREX_USE_CUDA
 using std::min;
@@ -21,10 +23,6 @@ template<typename EnumClass> auto enum_class_integer(EnumClass const value) ->
 };
 
 template<class SparseLinearSolver, class SystemClass, size_t order, size_t vector_length> class SdcIntegrator {
-  typedef SdcIntegrator<SparseLinearSolver, SystemClass, order> SdcIntClass;
-  typedef RealVector<SystemClass::neqs> NReals;
-  typedef RealSparseMatrix<SystemClass::neqs, SystemClass::nnz> SMat;
-    
   static const size_t number_nodes = order - 1;
 
   const Real dt_control_S1 = 0.9;
@@ -150,7 +148,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  RealVector<vector_length>& get_previous_time(SdcIntClass& sdc) {
+  RealVector<vector_length>& get_previous_time() {
     return time_nodes[node_counter-1];
   }
 
