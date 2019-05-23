@@ -41,21 +41,21 @@ void do_sdc_kernel(Real* y_initial, Real* y_final,
       y_ini.data[i] = y_initial[global_index * SystemClass::neqs + i];
     }
 
-    SdcIntClass::set_jacobian_layout(sdc, ode_system);
-    SdcIntClass::initialize(sdc, y_ini, 
-			    start_time, end_time, start_timestep,
-			    tolerance, maximum_newton_iters, 
-			    fail_if_maximum_newton, maximum_steps,
-			    epsilon, use_adaptive_timestep);
+    sdc.set_jacobian_layout(ode_system);
+    sdc.initialize(y_ini, 
+                   start_time, end_time, start_timestep,
+                   tolerance, maximum_newton_iters, 
+                   fail_if_maximum_newton, maximum_steps,
+                   epsilon, use_adaptive_timestep);
 
     for (size_t i = 0; i < maximum_steps; i++) {
-      SdcIntClass::prepare(sdc);
-      SdcIntClass::solve(sdc);
-      SdcIntClass::update(sdc);
-      if (SdcIntClass::is_finished(sdc)) break;
+      sdc.prepare();
+      sdc.solve();
+      sdc.update();
+      if (sdc.is_finished()) break; // need to do this on a per-system basis internally with a mask perhaps?
     }
 
-    RealVector<SystemClass::neqs>& y_fin = SdcIntClass::get_current_solution(sdc);
+    RealVector<SystemClass::neqs>& y_fin = sdc.get_current_solution();
     for (size_t i = 0; i < SystemClass::neqs; i++) {
       y_final[global_index * SystemClass::neqs + i] = y_fin.data[i];
     }
