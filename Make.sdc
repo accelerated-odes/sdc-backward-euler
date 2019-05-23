@@ -1,11 +1,8 @@
 AMREX_HOME ?= /path/to/amrex
-ODE_SDC_HOME ?= /path/to/tasks
-
-LINK_CUSOLVER ?= FALSE
-USE_VERBOSE_DEBUG ?= FALSE
+ODE_SDC_HOME ?= /path/to/here
 
 # default is to compile with CUDA
-USE_CUDA ?= TRUE
+USE_CUDA ?= FALSE
 
 TOP := $(ODE_SDC_HOME)
 
@@ -18,17 +15,13 @@ EXTERN_CORE ?=
 # Extra Libraries
 #------------------------------------------------------------------------------
 
-ifeq ($(LINK_CUSOLVER), TRUE)
-  LIBRARIES += -lcusolver -lcusparse -lcublas
-endif
+# LIBRARIES += -l[library]
 
 #------------------------------------------------------------------------------
 # Preprocessor Definitions
 #------------------------------------------------------------------------------
 
-ifeq ($(USE_VERBOSE_DEBUG), TRUE)
-  DEFINES += -DVERBOSE_DEBUG
-endif
+# DEFINES += -D[name]
 
 #------------------------------------------------------------------------------
 # Standard AMReX Build Definitions
@@ -43,6 +36,7 @@ all: $(executable)
 # Directories
 #------------------------------------------------------------------------------
 
+Bdirs := Source
 Bpack += $(foreach dir, $(Bdirs), $(TOP)/$(dir)/Make.package)
 Blocs += $(foreach dir, $(Bdirs), $(TOP)/$(dir))
 
