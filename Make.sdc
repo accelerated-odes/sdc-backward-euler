@@ -1,11 +1,10 @@
 AMREX_HOME ?= /path/to/amrex
-ODE_SDC_HOME ?= /path/to/tasks
+ODE_SDC_HOME ?= /path/to/here
 
-LINK_CUSOLVER ?= FALSE
 USE_VERBOSE_DEBUG ?= FALSE
 
 # default is to compile with CUDA
-USE_CUDA ?= TRUE
+USE_CUDA ?= FALSE
 
 TOP := $(ODE_SDC_HOME)
 
@@ -18,9 +17,7 @@ EXTERN_CORE ?=
 # Extra Libraries
 #------------------------------------------------------------------------------
 
-ifeq ($(LINK_CUSOLVER), TRUE)
-  LIBRARIES += -lcusolver -lcusparse -lcublas
-endif
+# LIBRARIES += -l[library]
 
 #------------------------------------------------------------------------------
 # Preprocessor Definitions
