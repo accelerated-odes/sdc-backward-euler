@@ -6,12 +6,21 @@
 #include "AMReX_Extension.H"
 #include "VectorGpuMacros.H"
 
-template<class MathType, size_t Nvec> class MathVector {
+#ifndef AMREX_USE_CUDA
+using std::min;
+using std::max;
+#endif
+
+template<class MathType, size_t Nvec, class StorageType>
+class MathVector : public StorageType {
 public:
 
-  using MV = MathVector<MathType, Nvec>;
-  
-  MathType data[Nvec];
+  using StorageType::data;
+  using StorageType::map;
+  using StorageType::save;
+  using StorageType::stored_size;
+
+  using MV = MathVector<MathType, Nvec, StorageType>;
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MathVector() {}
@@ -27,7 +36,7 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MathType* end() {
-    return data + Nvec;
+    return data + stored_size;
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -37,16 +46,16 @@ public:
 
   virtual void print() {
     size_t i = 0;
-    for (size_t i = 0; i < Nvec; i++) {
+    for (size_t i = 0; i < stored_size; i++) {
       std::cout << this->data[i];
-      if (i < Nvec - 1) std::cout << " ";
+      if (i < stored_size - 1) std::cout << " ";
       i++;
     }
-  }  
-  
+  }
+
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator=(MV& source) {
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] = source[i];
                   });
@@ -55,41 +64,9 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator=(MathType scalar) {
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] = scalar;
-                  });
-    return *this;
-  }
-
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MV& load(MathType* array, size_t array_max_size) {
-    VECTOR_LAMBDA(Nvec,
-                  [&](size_t& i) {
-                     #ifdef __CUDA_ARCH__
-                       size_t k = i + Nvec * blockIdx.x;
-                       if (k < array_max_size)
-                         data[i] = array[k];
-                     #else
-                       if (i < array_max_size)
-                         data[i] = array[i];
-                     #endif
-                  });
-    return *this;
-  }
-
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MV& save(MathType* array, size_t array_max_size) {
-    VECTOR_LAMBDA(Nvec,
-                  [&](size_t& i) {
-                     #ifdef __CUDA_ARCH__
-                       size_t k = i + Nvec * blockIdx.x;
-                       if (k < array_max_size)
-                         array[k] = data[i];
-                     #else
-                       if (i < array_max_size)
-                         array[i] = data[i];
-                     #endif
                   });
     return *this;
   }
@@ -102,7 +79,7 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator+=(MV& y) {
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] += y[i];
                   });
@@ -111,7 +88,7 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator+=(MathType scalar) {
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] += scalar;
                   });
@@ -120,7 +97,7 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator-=(MV& y) {
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] -= y[i];
                   });
@@ -129,7 +106,7 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator-=(MathType scalar) {
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] -= scalar;
                   });
@@ -138,7 +115,7 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator*=(MV& y) {
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] *= y[i];
                   });
@@ -147,7 +124,7 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator*=(MathType scalar) {
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] *= scalar;
                   });
@@ -156,7 +133,7 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator/=(MV& y) {
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] /= y[i];
                   });
@@ -165,7 +142,7 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator/=(MathType scalar) {
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] /= scalar;
                   });
@@ -174,7 +151,7 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& negate() {
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] = -data[i];
                   });

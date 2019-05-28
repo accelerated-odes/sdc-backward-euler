@@ -16,21 +16,24 @@
 
 using namespace amrex;
 
-template<size_t Nset, size_t Nvec> class RealVectorSet : public MathVectorSet<Real, Nset, Nvec> {
+template<size_t Nset, size_t Nvec, class StorageType>
+class RealVectorSet : public MathVectorSet<Real, Nset, Nvec, StorageType> {
 public:
 
-  using MathVectorSet<Real, Nset, Nvec>::data;
-  using MathVectorSet<Real, Nset, Nvec>::begin;
-  using MathVectorSet<Real, Nset, Nvec>::end;
-  using MathVectorSet<Real, Nset, Nvec>::operator=;
-  using MathVectorSet<Real, Nset, Nvec>::operator+=;
-  using MathVectorSet<Real, Nset, Nvec>::operator-=;
-  using MathVectorSet<Real, Nset, Nvec>::operator*=;
-  using MathVectorSet<Real, Nset, Nvec>::operator/=;
-  using MathVectorSet<Real, Nset, Nvec>::negate;
+  using MathVectorSet<Real, Nset, Nvec, StorageType>::data;
+  using MathVectorSet<Real, Nset, Nvec, StorageType>::begin;
+  using MathVectorSet<Real, Nset, Nvec, StorageType>::end;
+  using MathVectorSet<Real, Nset, Nvec, StorageType>::operator=;
+  using MathVectorSet<Real, Nset, Nvec, StorageType>::operator+=;
+  using MathVectorSet<Real, Nset, Nvec, StorageType>::operator-=;
+  using MathVectorSet<Real, Nset, Nvec, StorageType>::operator*=;
+  using MathVectorSet<Real, Nset, Nvec, StorageType>::operator/=;
+  using MathVectorSet<Real, Nset, Nvec, StorageType>::negate;
+
+  typedef RealVectorSet<Nset, Nvec, StorageType> ThisType;
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  RealVectorSet<Nset, Nvec>& abs(int comp = -1) {
+  ThisType& abs(int comp = -1) {
     // apply absolute value to the desired component, or all components
     if (comp >= 0)
       data[comp].abs();
@@ -43,7 +46,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  RealVectorSet<Nset, Nvec>& inv(int comp = -1) {
+  ThisType& inv(int comp = -1) {
     // apply inverse to the desired component, or all components
     if (comp >= 0)
       data[comp].inv();
@@ -56,8 +59,8 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  RealVectorSet<Nset, Nvec>& dot(RealVectorSet<Nset, Nvec>& y,
-                                 RealVector<Nvec>& result) {
+  ThisType& dot(ThisType& y,
+                RealVector<Nvec, StorageType>& result) {
     // calculate the dot product with y with respect to components and store it in result
     result = 0.0;
     WORKER_SYNC();
@@ -70,7 +73,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  RealVectorSet<Nset, Nvec>& max_norm(RealVector<Nvec>& result) {
+  ThisType& max_norm(RealVector<Nvec, StorageType>& result) {
     // calculate the max norm with respect to components and store it in result
     result = 0.0;
     WORKER_SYNC();
@@ -83,8 +86,8 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  RealVectorSet<Nset, Nvec>& wrms_norm(RealVectorSet<Nset, Nvec>& weights,
-                                       RealVector<Nvec>& result) {
+  ThisType& wrms_norm(ThisType& weights,
+                      RealVector<Nvec, StorageType>& result) {
     // calculate the component-wise wrms norm with respect to weights and store it in result
     result = 0.0;
     WORKER_SYNC();
@@ -103,7 +106,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  RealVectorSet<Nset, Nvec>& rms_norm(RealVector<Nvec>& result) {
+  ThisType& rms_norm(RealVector<Nvec, StorageType>& result) {
     // calculate the component-wise rms norm and store it in result
     result = 0.0;
     WORKER_SYNC();
@@ -121,7 +124,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  RealVectorSet<Nset, Nvec>& frobenius_norm(RealVector<Nvec>& result) {
+  ThisType& frobenius_norm(RealVector<Nvec, StorageType>& result) {
     // calculate the component-wise frobenius norm and store it in result
     result = 0.0;
     WORKER_SYNC();
@@ -139,7 +142,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  RealVectorSet<Nset, Nvec>& min(RealVector<Nvec>& result) {
+  ThisType& min(RealVector<Nvec, StorageType>& result) {
     // calculate the min with respect to components and store it in result
     VECTOR_LAMBDA(Nvec,
                   [&](size_t& k) {
