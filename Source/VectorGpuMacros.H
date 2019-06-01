@@ -10,6 +10,8 @@
 #include <omp.h>
 #endif
 
+#define PRINT_DIM3(id, d) std::cout << id << " " << d.x << " " << d.y << " " << d.z << "\n"
+
 // Get the number of cells in a Box defined by
 // lo and hi Dim3 objects.
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -36,6 +38,32 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 #define PARALLEL_REGION
 
 #define PARALLEL_SHARED __shared__
+
+#define PARALLEL_GROUP_INDEX_X(ix) blockIdx.x
+
+#define PARALLEL_GROUP_INDEX_Y(iy) blockIdx.y
+
+#define PARALLEL_GROUP_INDEX_Z(iz) blockIdx.z
+
+// The BOX_VECTOR_SET_LAMBDA logically flattens a lambda
+// operation across Nset components and vector elements in lo, hi.
+// Each threadblock works on a chunk of the Box so we have
+// to determine which chunk in lo, hi we have.
+#define BOX_VECTOR_SET_LAMBDA(Nset, lo, hi, lambda) ({  \
+    size_t ncells3d = box_number_cells(lo, hi);         \
+    size_t nstrides = Nset * ncells3d / blockDim.x;     \
+    if ((Nset * ncells3d) % blockDim.x > 0.0)           \
+      nstrides++;                                       \
+                                                        \
+    for (size_t n = 0; n < nstrides; n++) {             \
+      size_t idx = threadIdx.x + n * blockDim.x;        \
+      if (idx < Nset * ncells3d) {                      \
+        size_t iset = idx / ncells3d;                   \
+        size_t ivec = idx % ncells3d;                   \
+        lambda(iset, ivec);                             \
+      }                                                 \
+    }                                                   \
+  })
 
 // The VECTOR_SET_LAMBDA logically flattens a lambda
 // operation across Nset components and Nvec vector elements
@@ -91,6 +119,12 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 
 #define PARALLEL_SHARED
 
+#define PARALLEL_GROUP_INDEX_X(ix) ix
+
+#define PARALLEL_GROUP_INDEX_Y(iy) iy
+
+#define PARALLEL_GROUP_INDEX_Z(iz) iz
+
 #define VECTOR_SET_LAMBDA(Nset, Nvec, lambda) ({        \
     PRAGMA_EXPRESSION(omp for schedule(static) collapse(2))   \
     for (size_t iset = 0; iset < Nset; iset++) {        \
@@ -122,9 +156,15 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 
 #define PARALLEL_SHARED
 
-#define VECTOR_SET_LAMBDA(Nset, Nvec, lambda) ({        \
-    for (size_t iset = 0; iset < Nset; iset++) {        \
-      for (size_t ivec = 0; ivec < Nvec; ivec++) {      \
+#define PARALLEL_GROUP_INDEX_X(ix) ix
+
+#define PARALLEL_GROUP_INDEX_Y(iy) iy
+
+#define PARALLEL_GROUP_INDEX_Z(iz) iz
+
+#define VECTOR_SET_LAMBDA(num_set, num_vec, lambda) ({  \
+    for (size_t iset = 0; iset < num_set; iset++) {     \
+      for (size_t ivec = 0; ivec < num_vec; ivec++) {   \
         lambda(iset, ivec);                             \
       }                                                 \
     }                                                   \

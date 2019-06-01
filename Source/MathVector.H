@@ -19,6 +19,7 @@ public:
   using StorageType::map;
   using StorageType::save;
   using StorageType::stored_size;
+  using StorageType::operator[];
 
   using MV = MathVector<MathType, Nvec, StorageType>;
 
@@ -53,8 +54,9 @@ public:
     }
   }
 
+  template<class SourceStoreClass>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MV& operator=(MV& source) {
+  MV& operator=(MathVector<MathType, Nvec, SourceStoreClass>& source) {
     VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] = source[i];
@@ -71,14 +73,9 @@ public:
     return *this;
   }
 
-  // The indexing operator returns the indexed entry
+  template<class SourceStoreClass>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MathType& operator[](unsigned int i) {
-    return data[i];
-  }
-
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MV& operator+=(MV& y) {
+  MV& operator+=(MathVector<MathType, Nvec, SourceStoreClass>& y) {
     VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] += y[i];
@@ -95,8 +92,9 @@ public:
     return *this;
   }
 
+  template<class SourceStoreClass>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MV& operator-=(MV& y) {
+  MV& operator-=(MathVector<MathType, Nvec, SourceStoreClass>& y) {
     VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] -= y[i];
@@ -113,8 +111,9 @@ public:
     return *this;
   }
 
+  template<class SourceStoreClass>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MV& operator*=(MV& y) {
+  MV& operator*=(MathVector<MathType, Nvec, SourceStoreClass>& y) {
     VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] *= y[i];
@@ -131,8 +130,9 @@ public:
     return *this;
   }
 
+  template<class SourceStoreClass>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MV& operator/=(MV& y) {
+  MV& operator/=(MathVector<MathType, Nvec, SourceStoreClass>& y) {
     VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] /= y[i];

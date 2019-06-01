@@ -26,13 +26,13 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   RealSparseMatrixSet() {}
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE    
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   RealSparseMatrixSet(IntegerVector<NNZ>& input_col_index,
                       IntegerVector<N+1>& input_row_count) {
     set_csr_layout(input_col_index, input_row_count);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE    
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   ~RealSparseMatrixSet() {}
 
   void print_layout() {

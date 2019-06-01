@@ -11,9 +11,9 @@ public:
     end_walltime = start_walltime;
     timer_running = false;
   }
-  
+
   void start_wallclock() {
-    timer_running = true;    
+    timer_running = true;
     start_walltime = std::chrono::high_resolution_clock::now();
   }
 

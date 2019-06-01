@@ -61,11 +61,11 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   SdcIntegrator() {}
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE    
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void initialize(RealVectorSet<SystemClass::neqs, vector_length>& y_init,
                   Real start_time, Real end_time, Real time_step_init = 0.0,
                   Real tolerance = 1.0e-6, size_t max_newton_iters=100,
-                  bool fail_if_max_newton = true, 
+                  bool fail_if_max_newton = true,
                   size_t max_steps = 1000000, Real epsilon = 2.5e-16,
                   bool use_adaptive_timestep = true) {
 
@@ -102,12 +102,12 @@ public:
     WORKER_SYNC();
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE    
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void set_jacobian_layout(SystemClass& ode_system) {
     j_new.set_csr_layout(ode_system.csr_col_index, ode_system.csr_row_count);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE    
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   ~SdcIntegrator() {}
 
   void print() {
@@ -208,7 +208,7 @@ public:
     y_new[node_counter] += y_delta;
     y_new[node_counter].max_norm(scratch);
     scratch += small;
-    y_delta.frobenius_norm(newton_error);    
+    y_delta.frobenius_norm(newton_error);
     newton_error /= scratch;
   }
 
@@ -251,7 +251,7 @@ public:
 
       // update counters for the new integration status
       if (!is_finished(k)) {
-        
+
         if (status[k] == SdcStatus::StartTimestep) {
           // reset SDC, Node, Newton counters
           sdc_counter[k] = 1;
@@ -277,7 +277,7 @@ public:
           // increment newton counter for the newton step we just did
           newton_counter[k]++;
         }
-      
+
       }
                                  });
 
@@ -346,7 +346,7 @@ public:
     else
       // integral from m = 1 to m = 2
       for (size_t i = 0; i < SystemClass::neqs; i++) {
-        VECTOR_LAMBDA(vector_length, [&](size_t& k) {        
+        VECTOR_LAMBDA(vector_length, [&](size_t& k) {
           q_node[i][k] = (time_nodes[1][k] - time_nodes[0][k])/12.0;
           q_node[i][k] *= (-f_old[0][i][k] + 8.0e0*f_old[1][i][k] + 5.0e0*f_old[2][i][k]);
                                      });
@@ -373,7 +373,7 @@ public:
             // Set new timestep for 4th order error control
             // Uses adaptive timestepping from Garcia, Eqs. 3.30, 3.31
             Real dt_est = time_step[k] * pow(fabs(newton_tolerance/newton_error[k]), 0.2);
-            time_step[k] = min(min(max(dt_control_S1 * dt_est, 
+            time_step[k] = min(min(max(dt_control_S1 * dt_est,
                                        time_step[k]/dt_control_S2),
                                    time_step[k] * dt_control_S2),
                                time_target - tnow);

@@ -29,6 +29,7 @@ public:
   using MathVectorSet<Real, Nset, Nvec, StorageType>::operator*=;
   using MathVectorSet<Real, Nset, Nvec, StorageType>::operator/=;
   using MathVectorSet<Real, Nset, Nvec, StorageType>::negate;
+  using MathVectorSet<Real, Nset, Nvec, StorageType>::stored_size;
 
   typedef RealVectorSet<Nset, Nvec, StorageType> ThisType;
 
@@ -38,7 +39,7 @@ public:
     if (comp >= 0)
       data[comp].abs();
     else
-      VECTOR_SET_LAMBDA(Nset, Nvec,
+      VECTOR_SET_LAMBDA(Nset, stored_size,
                         [&](size_t& iset,size_t& ivec) {
                           data[iset].abs(ivec);
                         });
@@ -51,20 +52,22 @@ public:
     if (comp >= 0)
       data[comp].inv();
     else
-      VECTOR_SET_LAMBDA(Nset, Nvec,
+      VECTOR_SET_LAMBDA(Nset, stored_size,
                         [&](size_t& iset,size_t& ivec) {
                           data[iset].inv(ivec);
                         });
     return *this;
   }
 
+  template<class AnyStorage1, class AnyStorage2>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  ThisType& dot(ThisType& y,
-                RealVector<Nvec, StorageType>& result) {
+  ThisType& dot(RealVectorSet<Nset, Nvec, AnyStorage1>& y,
+                RealVector<Nvec, AnyStorage2>& result) {
     // calculate the dot product with y with respect to components and store it in result
     result = 0.0;
     WORKER_SYNC();
-    VECTOR_SET_LAMBDA(Nset, Nvec,
+    size_t looplen = min(stored_size, y.stored_size);
+    VECTOR_SET_LAMBDA(Nset, looplen,
                       [&](size_t& iset, size_t& ivec) {
                         atomicAdd(&result[ivec], data[iset][ivec] * y[iset][ivec]);
                       });
@@ -72,12 +75,13 @@ public:
     return *this;
   }
 
+  template<class AnyStorage>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  ThisType& max_norm(RealVector<Nvec, StorageType>& result) {
+  ThisType& max_norm(RealVector<Nvec, AnyStorage>& result) {
     // calculate the max norm with respect to components and store it in result
     result = 0.0;
     WORKER_SYNC();
-    VECTOR_SET_LAMBDA(Nset, Nvec,
+    VECTOR_SET_LAMBDA(Nset, stored_size,
                       [&](size_t& iset, size_t& ivec) {
                         atomicMax(&result[ivec], fabs(data[iset][ivec]));
                       });
@@ -85,19 +89,21 @@ public:
     return *this;
   }
 
+  template<class AnyStorage1, class AnyStorage2>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  ThisType& wrms_norm(ThisType& weights,
-                      RealVector<Nvec, StorageType>& result) {
+  ThisType& wrms_norm(RealVectorSet<Nset, Nvec, AnyStorage1>& weights,
+                      RealVector<Nvec, AnyStorage2>& result) {
     // calculate the component-wise wrms norm with respect to weights and store it in result
     result = 0.0;
     WORKER_SYNC();
-    VECTOR_SET_LAMBDA(Nset, Nvec,
+    size_t looplen = min(stored_size, weights.stored_size);
+    VECTOR_SET_LAMBDA(Nset, looplen,
                       [&](size_t& iset, size_t& ivec) {
                         atomicAdd(&result[ivec],
                                   pow(data[iset][ivec] * weights[iset][ivec], 2.0));
                       });
     WORKER_SYNC();
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(looplen,
                   [&](size_t& k) {
                     result[k] = sqrt(result[k] / Nset);
                   });
@@ -105,17 +111,18 @@ public:
     return *this;
   }
 
+  template<class AnyStorage>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  ThisType& rms_norm(RealVector<Nvec, StorageType>& result) {
+  ThisType& rms_norm(RealVector<Nvec, AnyStorage>& result) {
     // calculate the component-wise rms norm and store it in result
     result = 0.0;
     WORKER_SYNC();
-    VECTOR_SET_LAMBDA(Nset, Nvec,
+    VECTOR_SET_LAMBDA(Nset, stored_size,
                       [&](size_t& iset, size_t& ivec) {
                         atomicAdd(&result[ivec], pow(data[iset][ivec], 2.0));
                       });
     WORKER_SYNC();
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& k) {
                     result[k] = sqrt(result[k] / Nset);
                   });
@@ -123,17 +130,18 @@ public:
     return *this;
   }
 
+  template<class AnyStorage>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  ThisType& frobenius_norm(RealVector<Nvec, StorageType>& result) {
+  ThisType& frobenius_norm(RealVector<Nvec, AnyStorage>& result) {
     // calculate the component-wise frobenius norm and store it in result
     result = 0.0;
     WORKER_SYNC();
-    VECTOR_SET_LAMBDA(Nset, Nvec,
+    VECTOR_SET_LAMBDA(Nset, stored_size,
                       [&](size_t& iset, size_t& ivec) {
                         atomicAdd(&result[ivec], pow(data[iset][ivec], 2.0));
                       });
     WORKER_SYNC();
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& k) {
                     result[k] = sqrt(result[k]);
                   });
@@ -141,15 +149,16 @@ public:
     return *this;
   }
 
+  template<class AnyStorage>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  ThisType& min(RealVector<Nvec, StorageType>& result) {
+  ThisType& min(RealVector<Nvec, AnyStorage>& result) {
     // calculate the min with respect to components and store it in result
-    VECTOR_LAMBDA(Nvec,
+    VECTOR_LAMBDA(stored_size,
                   [&](size_t& k) {
                     result[k] = data[0][k];
                   });
     WORKER_SYNC();
-    VECTOR_SET_LAMBDA(Nset, Nvec,
+    VECTOR_SET_LAMBDA(Nset, stored_size,
                       [&](size_t& iset, size_t& ivec) {
                         atomicMin(&result[ivec], data[iset][ivec]);
                       });
