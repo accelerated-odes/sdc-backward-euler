@@ -44,6 +44,10 @@ Blocs += $(foreach dir, $(Bdirs), $(TOP)/$(dir))
 # AMReX
 #------------------------------------------------------------------------------
 
+ifeq ($(USE_CUDA), TRUE)
+  AMREX_USE_CUDA = TRUE
+endif
+
 # core AMReX directories -- note the Make.package for these adds these
 # directories into VPATH_LOCATIONS and INCLUDE_LOCATIONS for us, so we
 # don't need to do it here
