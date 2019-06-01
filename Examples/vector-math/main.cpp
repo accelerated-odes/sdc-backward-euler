@@ -4,9 +4,9 @@
 #include <cuda_profiler_api.h>
 #endif
 
-#include "VectorGpuMacros.H"
-#include "RealVectorSet.H"
+#include "VectorParallelUtil.H"
 #include "VectorStorage.H"
+#include "RealVectorSet.H"
 #include "WallTimer.H"
 
 template<size_t vector_set_length, size_t vector_length, class StorageType>

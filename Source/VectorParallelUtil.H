@@ -1,6 +1,9 @@
-#ifndef VECTOR_GPU_MACROS_H
-#define VECTOR_GPU_MACROS_H
+#ifndef VECTOR_PARALLEL_UTIL_H
+#define VECTOR_PARALLEL_UTIL_H
+
 #include "AMReX_Array.H"
+#include "AMReX_Box.H"
+#include <cassert>
 
 #ifdef __CUDA_ARCH__
 #include "cuda_runtime.h"
@@ -9,6 +12,54 @@
 #ifdef _OPENMP
 #include <omp.h>
 #endif
+
+void get_tiling(const amrex::Box& bx, const size_t grid_size_per_block,
+                amrex::Dim3& kernel_tile_size, amrex::Dim3& kernel_num_blocks) {
+
+  auto box_length = bx.length();
+
+  kernel_tile_size.x = box_length[0];
+  kernel_tile_size.y = box_length[1];
+  kernel_tile_size.z = box_length[2];
+
+  kernel_num_blocks.x = 1;
+  kernel_num_blocks.y = 1;
+  kernel_num_blocks.z = 1;
+
+  int total_blocks = 1;
+
+  auto tilelen = [&]()
+                 { return static_cast<size_t>(kernel_tile_size.x * kernel_tile_size.y * kernel_tile_size.z); };
+
+  while(true) {
+    if ((kernel_tile_size.z % 2) == 0 &&
+        box_length[2] % (kernel_tile_size.z / 2) == 0 &&
+        tilelen() > grid_size_per_block) {
+      kernel_tile_size.z /= 2;
+      kernel_num_blocks.z *= 2;
+      total_blocks *= 2;
+      continue;
+    } else if ((kernel_tile_size.y % 2) == 0 &&
+               box_length[1] % (kernel_tile_size.y / 2) == 0 &&
+               tilelen() > grid_size_per_block) {
+      kernel_tile_size.y /= 2;
+      kernel_num_blocks.y *= 2;
+      total_blocks *= 2;
+      continue;
+    } else if ((kernel_tile_size.x % 2) == 0 &&
+               box_length[0] % (kernel_tile_size.x / 2) == 0 &&
+               tilelen() > grid_size_per_block) {
+      kernel_tile_size.x /= 2;
+      kernel_num_blocks.x *= 2;
+      total_blocks *= 2;
+      continue;
+    } else {
+      break;
+    }
+  }
+
+  assert(tilelen() <= grid_size_per_block);
+}
 
 #define PRINT_DIM3(id, d) std::cout << id << " " << d.x << " " << d.y << " " << d.z << "\n"
 

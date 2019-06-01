@@ -7,7 +7,8 @@
 #include "AMReX_REAL.H"
 #include "AMReX_GpuQualifiers.H"
 #include "AMReX_Extension.H"
-#include "VectorGpuMacros.H"
+
+#include "VectorParallelUtil.H"
 #include "MathVector.H"
 
 using namespace amrex;

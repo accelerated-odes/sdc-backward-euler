@@ -9,8 +9,9 @@
 #include "cuda_runtime.h"
 #endif
 
-#include "VectorGpuMacros.H"
 #include "AMReX_REAL.H"
+
+#include "VectorParallelUtil.H"
 #include "MathVectorSet.H"
 #include "RealVector.H"
 

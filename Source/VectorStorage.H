@@ -1,7 +1,8 @@
 #ifndef _VECTOR_STORAGE_H
 #define _VECTOR_STORAGE_H
-#include "VectorGpuMacros.H"
+
 #include "AMReX_Array.H"
+#include "VectorParallelUtil.H"
 
 #ifndef AMREX_USE_CUDA
 using std::min;

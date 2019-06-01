@@ -5,10 +5,12 @@
 #include <limits>
 #include "math.h"
 #include "AMReX_REAL.H"
+
 #include "RealVector.H"
 #include "RealVectorSet.H"
 #include "RealSparseMatrix.H"
-#include "VectorGpuMacros.H"
+
+#include "VectorParallelUtil.H"
 
 #ifndef AMREX_USE_CUDA
 using std::min;

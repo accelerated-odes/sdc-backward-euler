@@ -6,7 +6,8 @@
 #include "AMReX_GpuQualifiers.H"
 #include "AMReX_Extension.H"
 #include "MathVector.H"
-#include "VectorGpuMacros.H"
+
+#include "VectorParallelUtil.H"
 #include "VectorStorage.H"
 
 #ifndef AMREX_USE_CUDA

@@ -4,7 +4,7 @@
 #include <cassert>
 #include "AMReX_GpuQualifiers.H"
 #include "AMReX_Extension.H"
-#include "VectorGpuMacros.H"
+#include "VectorParallelUtil.H"
 
 #ifndef AMREX_USE_CUDA
 using std::min;
