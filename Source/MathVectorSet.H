@@ -78,6 +78,18 @@ public:
     return *this;
   }
 
+  template<class SourceStoreClass>
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MVS& operator=(MathVector<MathType, Nvec, SourceStoreClass>& source) {
+    SINGLE_LAMBDA([&]() { resize(min(Nvec, source.stored_size)); });
+    WORKER_SYNC();
+    VECTOR_SET_LAMBDA(Nset, stored_size,
+                      [&](size_t& iset, size_t& ivec) {
+                        data[iset][ivec] = source[ivec];
+                      });
+    return *this;
+  }
+
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator=(MathType scalar) {
     VECTOR_SET_LAMBDA(Nset, stored_size,
