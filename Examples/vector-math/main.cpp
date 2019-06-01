@@ -101,15 +101,15 @@ int main(int argc, char* argv[]) {
 
 #ifdef AMREX_USE_CUDA
   doit<nVectorSets, nVectorSize,
-       //StackMemory<Real, nVectorSize>><<<nBlocks, nThreads>>>(y_initial_d, y_final_d, size_per_component);
-       HeapMemoryWindow<Real>><<<nBlocks, nThreads>>>(y_initial_d, y_final_d, size_per_component);
+       StackCreate<Real, nVectorSize>><<<nBlocks, nThreads>>>(y_initial_d, y_final_d, size_per_component);
+       //       HeapWindow<Real>><<<nBlocks, nThreads>>>(y_initial_d, y_final_d, size_per_component);
   cuda_status = cudaDeviceSynchronize();
   assert(cuda_status == cudaSuccess);
 #else
   for (int i = 0; i < nBlocks; i++) {
     doit<nVectorSets, nVectorSize,
-         //StackMemory<Real, nVectorSize>>(y_initial, y_final, size_per_component, i);
-         HeapMemoryWindow<Real>>(y_initial, y_final, size_per_component, i);
+         StackCreate<Real, nVectorSize>>(y_initial, y_final, size_per_component, i);
+    //HeapWindow<Real>>(y_initial, y_final, size_per_component, i);
   }
 #endif
 
