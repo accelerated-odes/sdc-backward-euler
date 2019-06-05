@@ -144,13 +144,13 @@ public:
     // the number of worker groups along each dimension
     // is equal to the number of tiles along the corresponding dimension.
 
-    tile_lo.x = fab_lo.x + PARALLEL_GROUP_INDEX_X(tile_idx.x) * tile_size.x;
+    tile_lo.x = fab_lo.x + PARALLEL_TILE_INDEX_X(tile_idx.x) * tile_size.x;
     tile_hi.x = tile_lo.x + tile_size.x - 1;
 
-    tile_lo.y = fab_lo.y + PARALLEL_GROUP_INDEX_Y(tile_idx.y) * tile_size.y;
+    tile_lo.y = fab_lo.y + PARALLEL_TILE_INDEX_Y(tile_idx.y) * tile_size.y;
     tile_hi.y = tile_lo.y + tile_size.y - 1;
 
-    tile_lo.z = fab_lo.z + PARALLEL_GROUP_INDEX_Z(tile_idx.z) * tile_size.z;
+    tile_lo.z = fab_lo.z + PARALLEL_TILE_INDEX_Z(tile_idx.z) * tile_size.z;
     tile_hi.z = tile_lo.z + tile_size.z - 1;
 
     tile_dim.x = tile_size.x; tile_dim.y = tile_size.y; tile_dim.z = tile_size.z;

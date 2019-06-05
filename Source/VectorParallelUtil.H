@@ -90,31 +90,15 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 
 #define PARALLEL_SHARED __shared__
 
-#define PARALLEL_GROUP_INDEX_X(ix) blockIdx.x
+#define PARALLEL_TILE_INDEX_X(ix) blockIdx.x
 
-#define PARALLEL_GROUP_INDEX_Y(iy) blockIdx.y
+#define PARALLEL_TILE_INDEX_Y(iy) blockIdx.y
 
-#define PARALLEL_GROUP_INDEX_Z(iz) blockIdx.z
+#define PARALLEL_TILE_INDEX_Z(iz) blockIdx.z
 
-// The BOX_VECTOR_SET_LAMBDA logically flattens a lambda
-// operation across Nset components and vector elements in lo, hi.
-// Each threadblock works on a chunk of the Box so we have
-// to determine which chunk in lo, hi we have.
-#define BOX_VECTOR_SET_LAMBDA(Nset, lo, hi, lambda) ({  \
-    size_t ncells3d = box_number_cells(lo, hi);         \
-    size_t nstrides = Nset * ncells3d / blockDim.x;     \
-    if ((Nset * ncells3d) % blockDim.x > 0.0)           \
-      nstrides++;                                       \
-                                                        \
-    for (size_t n = 0; n < nstrides; n++) {             \
-      size_t idx = threadIdx.x + n * blockDim.x;        \
-      if (idx < Nset * ncells3d) {                      \
-        size_t iset = idx / ncells3d;                   \
-        size_t ivec = idx % ncells3d;                   \
-        lambda(iset, ivec);                             \
-      }                                                 \
-    }                                                   \
-  })
+#define PARALLEL_SIMT_SIZE 32 // number of threads per warp
+
+
 
 // The VECTOR_SET_LAMBDA logically flattens a lambda
 // operation across Nset components and Nvec vector elements
@@ -151,7 +135,10 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
   })
 
 // The WORKER_SYNC just synchronizes the threads in the block.
-#define WORKER_SYNC() ({__syncthreads();})
+#define WORKER_SYNC() ({ __syncthreads(); })
+
+// The WORKER_SIMT_SYNC synchronizes the threads in the current warp.
+#define WORKER_SIMT_SYNC() ({ __syncwarp(); })
 
 #define SINGLE_LAMBDA(lambda) ({                        \
     if (threadIdx.x == 0)                               \
@@ -170,11 +157,11 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 
 #define PARALLEL_SHARED
 
-#define PARALLEL_GROUP_INDEX_X(ix) ix
+#define PARALLEL_TILE_INDEX_X(ix) ix
 
-#define PARALLEL_GROUP_INDEX_Y(iy) iy
+#define PARALLEL_TILE_INDEX_Y(iy) iy
 
-#define PARALLEL_GROUP_INDEX_Z(iz) iz
+#define PARALLEL_TILE_INDEX_Z(iz) iz
 
 #define VECTOR_SET_LAMBDA(Nset, Nvec, lambda) ({        \
     PRAGMA_EXPRESSION(omp for schedule(static) collapse(2))   \
@@ -193,6 +180,8 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 
 #define WORKER_SYNC() ({PRAGMA_EXPRESSION(omp barrier)})
 
+#define WORKER_SIMT_SYNC() ({})
+
 #define SINGLE_LAMBDA(lambda) ({                        \
   if (omp_get_thread_num() == 0)                        \
     lambda();                                           \
@@ -207,11 +196,11 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 
 #define PARALLEL_SHARED
 
-#define PARALLEL_GROUP_INDEX_X(ix) ix
+#define PARALLEL_TILE_INDEX_X(ix) ix
 
-#define PARALLEL_GROUP_INDEX_Y(iy) iy
+#define PARALLEL_TILE_INDEX_Y(iy) iy
 
-#define PARALLEL_GROUP_INDEX_Z(iz) iz
+#define PARALLEL_TILE_INDEX_Z(iz) iz
 
 #define VECTOR_SET_LAMBDA(num_set, num_vec, lambda) ({  \
     for (size_t iset = 0; iset < num_set; iset++) {     \
@@ -227,6 +216,8 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
   })
 
 #define WORKER_SYNC() ({})
+
+#define WORKER_SIMT_SYNC() ({})
 
 #define SINGLE_LAMBDA(lambda) ({                        \
     lambda();                                           \
