@@ -15,13 +15,14 @@ template<size_t N, size_t NNZ, size_t vector_length> class RealSparseMatrixSet :
     IntegerVector<N+1> row_count;
 public:
 
-  using ThisType = RealSparseMatrixSet<N, NNZ, vector_length>;
   using RealVectorSet<NNZ, vector_length>::operator[];
   using RealVectorSet<NNZ, vector_length>::operator=;
   using RealVectorSet<NNZ, vector_length>::operator+=;
   using RealVectorSet<NNZ, vector_length>::operator-=;
   using RealVectorSet<NNZ, vector_length>::operator*=;
   using RealVectorSet<NNZ, vector_length>::operator/=;
+
+  using ThisType = RealSparseMatrixSet<N, NNZ, vector_length>;
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   RealSparseMatrixSet() {}
