@@ -19,20 +19,14 @@ using namespace amrex;
 #ifdef AMREX_USE_CUDA
 template<int threads_per_block, size_t vector_set_length, size_t vector_length, class StorageType>
 __global__
-#else
-template<int threads_per_block, size_t vector_set_length, size_t vector_length, class StorageType>
-#endif
 void index_test(Real* y_initial, Real* y_final, size_t array_comp_size,
                 int array_chunk_index = -1)
 {
   PARALLEL_SHARED MathVectorSet<Real, vector_set_length, vector_length, StorageType> x_initial;
   PARALLEL_SHARED MathVectorSet<Real, vector_set_length, vector_length, StorageType> x_final;
 
-  PARALLEL_SHARED MathVectorSet<size_t, 2, PARALLEL_SIMT_SIZE,
-                                StackCreate<size_t, PARALLEL_SIMT_SIZE>> simt_branch_indices;
-  PARALLEL_SHARED MathVector<unsigned int, 2, StackCreate<unsigned int, 2>> map_branch_indices;
-
-  const int threads_per_group = threads_per_block/2;
+  const int number_branches = 3;
+  const int threads_per_group = threads_per_block/number_branches;
 
   PARALLEL_REGION
     {
@@ -41,26 +35,15 @@ void index_test(Real* y_initial, Real* y_final, size_t array_comp_size,
       x_final.map(y_final, array_comp_size, array_chunk_index,
                   0, 0, vector_set_length);
 
-      map_branch_indices.init();
-      simt_branch_indices.init();
-
       WORKER_SYNC();
 
       x_final = -1.0;
 
-      // even indexes are 1, odd indexes are 2
-      simt_branch_indices = vector_length; // this indicates no mapping
-      map_branch_indices = 1; // start at the beginning of the vector. Use 1-based index so we can check for the 0 stored by atomicInc.
-      WORKER_SYNC();
-
       auto tblock = cg::this_thread_block();
-      // x_final[0][tblock.thread_rank()] = tblock.thread_rank();
 
-      // we will have 1 branch point with 2 branches so make 2 thread groups.
       cg::thread_block_tile<threads_per_group> thread_group = cg::tiled_partition<threads_per_group>(tblock);
 
-      // figure out which branch to take with this group of threads
-      int this_branch_flag = (tblock.thread_rank() < thread_group.size()) ? 0 : 1;
+      int this_branch_flag = tblock.thread_rank() / thread_group.size();
 
       int working_index = thread_group.thread_rank();
 
@@ -70,13 +53,13 @@ void index_test(Real* y_initial, Real* y_final, size_t array_comp_size,
                    0, 0, vector_set_length);
     }
 }
-
+#endif
 
 #ifdef AMREX_USE_CUDA
 template<int threads_per_block, size_t vector_set_length, size_t vector_length, class StorageType>
 __global__
 #else
-template<int threads_per_block, size_t vector_set_length, size_t vector_length, class StorageType>
+template<size_t vector_set_length, size_t vector_length, class StorageType>
 #endif
 void doit(Real* y_initial, Real* y_final, size_t array_comp_size,
           int array_chunk_index = -1)
@@ -84,8 +67,14 @@ void doit(Real* y_initial, Real* y_final, size_t array_comp_size,
   PARALLEL_SHARED MathVectorSet<Real, vector_set_length, vector_length, StorageType> x_initial;
   PARALLEL_SHARED MathVectorSet<Real, vector_set_length, vector_length, StorageType> x_final;
 
-  const int threads_per_group = threads_per_block/2;
-  PARALLEL_SHARED TaskQueue<2, threads_per_group> task_queue;
+  const size_t number_branches = 3;
+
+#ifdef AMREX_USE_CUDA  
+  const size_t threads_per_group = threads_per_block/number_branches;
+  PARALLEL_SHARED TaskQueue<number_branches, threads_per_group> task_queue;
+#else
+  PARALLEL_SHARED TaskQueue<number_branches> task_queue;
+#endif
 
   PARALLEL_REGION
     {
@@ -98,23 +87,27 @@ void doit(Real* y_initial, Real* y_final, size_t array_comp_size,
 
       WORKER_SYNC();
 
-      auto branch_selector = [&](int& this_branch_flag, int& widx)->bool {
-                               return ((x_initial[0][widx] == 1.0 && this_branch_flag == 0) ||
-                                       (x_initial[0][widx] == 2.0 && this_branch_flag == 1));
+      auto branch_selector = [&](const int& widx)->int {
+                               if (x_initial[0][widx] == 1.0) return 0;
+                               else if (x_initial[0][widx] == 2.0) return 1;
+                               else if (x_initial[0][widx] == 3.0) return 2;
+                               else return -1;
                              };
 
-      auto branch_selector_finished = [&](int& widx)->bool {
+      auto branch_selector_finished = [&](const int& widx)->bool {
                                         return (widx >= vector_length);
                                       };
 
-      auto branch_tasks = [&](int& this_branch_flag, size_t& sbi) {
+      auto branch_tasks = [&](const int& this_branch_flag, const size_t& sbi) {
                             if (this_branch_flag == 0)
                               x_initial[0][sbi] = 10.0;
-                            else
+                            else if (this_branch_flag == 1)
                               x_initial[0][sbi] = 20.0;
+                            else if (this_branch_flag == 2)
+                              x_initial[0][sbi] = 30.0;
                           };
 
-      task_queue.execute<2>(branch_selector, branch_selector_finished, branch_tasks);
+      task_queue.execute<number_branches, vector_length>(branch_selector, branch_selector_finished, branch_tasks);
 
       x_final = x_initial;
 
@@ -129,7 +122,7 @@ int main(int argc, char* argv[]) {
   cudaProfilerStart();
 #endif
 
-  const int N = 128;
+  const int N = 96*2;
 
   WallTimer timer;
 
@@ -155,8 +148,11 @@ int main(int argc, char* argv[]) {
 
   // initialize systems
   Real correct_ysum = 0.0;
+  Real counter = 1.0;
   for (size_t i = 0; i < N; i++) {
-    y_initial[i] = (i % 2 == 0) ? 1.0 : 2.0;
+    y_initial[i] = counter;
+    if (counter == 3.0) counter = 1.0;
+    else counter++;
     correct_ysum += y_initial[i] * 10.0;
   }
 
@@ -167,11 +163,11 @@ int main(int argc, char* argv[]) {
 #endif
 
   // size of each vector and number of vector sets in a given shared memory structure
-  const int nVectorSize = 64;   // use vectors of length 64
+  const int nVectorSize = 96;   // use vectors of length 96
   const int nVectorSets = 1;    // each vectorset contains 1 component vector
 
   // how many threads per block to use for CUDA
-  const int nThreads = 32;
+  const int nThreads = 3 * 32;
 
   // each block operates on a number of elements M in the global array
   // M = nVectorSize * nVectorSets
@@ -192,7 +188,7 @@ int main(int argc, char* argv[]) {
   assert(cuda_status == cudaSuccess);
 #else
   for (int i = 0; i < nBlocks; i++) {
-    doit<1,nVectorSets, nVectorSize,
+    doit<nVectorSets, nVectorSize,
          //StackCreate<Real, nVectorSize>>(y_initial, y_final, size_per_component, i);
          HeapWindow<Real>>(y_initial, y_final, size_per_component, i);
   }
