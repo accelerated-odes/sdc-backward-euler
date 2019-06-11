@@ -61,7 +61,7 @@ public:
     size_t i = 0;
     for (size_t i = 0; i < Nset; i++) {
       data[i].print();
-      if (i < Nset - 1) std::cout << std::endl;
+      std::cout << std::endl;
       i++;
     }
   }
@@ -99,6 +99,13 @@ public:
                       });
     return *this;
   }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MVS& init(size_t array_comp_size = Nvec) {
+    for(size_t iset = 0; iset < Nset; iset++) {
+      data[iset].init(array_comp_size);
+    }
+  }  
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& map(MathType* const array, size_t array_comp_size, int chunk_index = -1,
@@ -186,8 +193,9 @@ public:
     return *this;
   }
 
+  template<typename AnyIndexType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MathVector<MathType, Nvec, StorageType>& operator[](unsigned int i) {
+  MathVector<MathType, Nvec, StorageType>& operator[](AnyIndexType i) {
     return data[i];
   }
 

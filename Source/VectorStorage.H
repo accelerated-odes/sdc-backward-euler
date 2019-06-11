@@ -9,7 +9,7 @@ using std::min;
 using std::max;
 #endif
 
-template<class StoreType, size_t alloc_size>
+template<typename StoreType, size_t alloc_size>
 class StackCreate {
 public:
   StoreType data[alloc_size];
@@ -21,15 +21,21 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   ~StackCreate() {}
 
+  template<typename AnyIndexType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  StoreType& operator[](size_t i) {
+  StoreType& operator[](AnyIndexType i) {
     return data[i];
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void map(StoreType* array, size_t array_max_size) {
+  void init(size_t array_max_size = alloc_size) {
     SINGLE_LAMBDA([&](){ stored_size = min(alloc_size, array_max_size); });
     WORKER_SYNC();
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  void map(StoreType* array, size_t array_max_size) {
+    init(array_max_size);
 
     VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
@@ -55,14 +61,21 @@ public:
   size_t stored_size;
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  HeapWindow() : stored_size(0) {}
+  HeapWindow() {}
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   ~HeapWindow() {}
 
+  template<typename AnyIndexType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  StoreType& operator[](size_t i) {
+  StoreType& operator[](AnyIndexType i) {
     return data[i];
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  void init() {
+    SINGLE_LAMBDA([&](){ stored_size = 0; });
+    WORKER_SYNC();
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -105,8 +118,9 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   ~FabWindow() {}
 
+  template<typename AnyIndexType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  StoreType& operator[](size_t i) {
+  StoreType& operator[](AnyIndexType i) {
     // we map the index i into our lo, hi region to get indices
     // to access the Fab (idx, jdx, kdx).
 
@@ -114,8 +128,8 @@ public:
 
     const int ztile_size = tile_dim.x * tile_dim.y;
 
-    const int kdx = i / ztile_size + tile_lo.z;
-    const int xy_index = i % ztile_size;
+    const int kdx = static_cast<int>(i) / ztile_size + tile_lo.z;
+    const int xy_index = static_cast<int>(i) % ztile_size;
 
     const int jdx = xy_index / tile_dim.x + tile_lo.y;
     const int idx = xy_index % tile_dim.x + tile_lo.x;
@@ -123,6 +137,12 @@ public:
     const auto array = amrex::Array4<StoreType>(data, fab_begin, fab_end);
 
     return array(idx, jdx, kdx, comp);
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  void init() {
+    SINGLE_LAMBDA([&](){ stored_size = 0; });
+    WORKER_SYNC();
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
