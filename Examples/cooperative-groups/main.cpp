@@ -5,16 +5,14 @@
 #include <cuda_profiler_api.h>
 #endif
 
-#include <cooperative_groups.h>
-
 #include <AMReX_REAL.H>
 
 #include "VectorParallelUtil.H"
 #include "VectorStorage.H"
 #include "MathVectorSet.H"
+#include "TaskQueue.H"
 #include "WallTimer.H"
 
-namespace cg = cooperative_groups;
 using namespace amrex;
 
 
@@ -82,14 +80,12 @@ template<int threads_per_block, size_t vector_set_length, size_t vector_length, 
 #endif
 void doit(Real* y_initial, Real* y_final, size_t array_comp_size,
           int array_chunk_index = -1)
-{
+{ 
   PARALLEL_SHARED MathVectorSet<Real, vector_set_length, vector_length, StorageType> x_initial;
   PARALLEL_SHARED MathVectorSet<Real, vector_set_length, vector_length, StorageType> x_final;
 
-  PARALLEL_SHARED MathVectorSet<size_t, 2, PARALLEL_SIMT_SIZE,
-                                StackCreate<size_t, PARALLEL_SIMT_SIZE>> simt_branch_indices;
-  PARALLEL_SHARED MathVector<unsigned int, 2, StackCreate<unsigned int, 2>> map_branch_indices;
   const int threads_per_group = threads_per_block/2;
+  PARALLEL_SHARED TaskQueue<2, threads_per_group> task_queue;
 
   PARALLEL_REGION
     {
@@ -98,97 +94,27 @@ void doit(Real* y_initial, Real* y_final, size_t array_comp_size,
       x_final.map(y_final, array_comp_size, array_chunk_index,
                   0, 0, vector_set_length);
 
-      map_branch_indices.init();
-      simt_branch_indices.init();
-
-      map_branch_indices = 1;
-      simt_branch_indices = vector_length;
+      task_queue.init();
 
       WORKER_SYNC();
 
-      auto tblock = cg::this_thread_block();
+      auto branch_selector = [&](int& this_branch_flag, int& widx)->bool {
+                               return ((x_initial[0][widx] == 1.0 && this_branch_flag == 0) ||
+                                       (x_initial[0][widx] == 2.0 && this_branch_flag == 1));
+                             };
 
-      // // we will have 1 branch point with 2 branches so make 2 thread groups.
-      cg::thread_block_tile<threads_per_group> thread_group = cg::tiled_partition<threads_per_group>(tblock);
+      auto branch_selector_finished = [&](int& widx)->bool {
+                                        return (widx >= vector_length);
+                                      };
 
-      // // figure out which branch to take with this group of threads
-      int this_branch_flag = (tblock.thread_rank() < thread_group.size()) ? 0 : 1;
+      auto branch_tasks = [&](int& this_branch_flag, size_t& sbi) {
+                            if (this_branch_flag == 0)
+                              x_initial[0][sbi] = 10.0;
+                            else
+                              x_initial[0][sbi] = 20.0;
+                          };
 
-      int working_index = thread_group.thread_rank();
-
-      auto check_loc = [&](int widx)->int {
-                         if (widx >= vector_length) return vector_length;
-
-                         // we will take branch 0 if that entry in x_initial is 1, and branch 1 if the entry is 2.
-                         if ((x_initial[0][widx] == 1.0 && this_branch_flag == 0) ||
-                             (x_initial[0][widx] == 2.0 && this_branch_flag == 1)) {
-                           if (map_branch_indices[this_branch_flag] == 0) return widx;
-                           unsigned int imap = atomicInc(&map_branch_indices[this_branch_flag], PARALLEL_SIMT_SIZE+1);
-                           imap--;
-                           simt_branch_indices[this_branch_flag][imap] = widx;
-                         }
-
-                         // not finished filling the work queue and not at end of vector
-                         return -1;
-                       };
-
-      /* // FOR DEBUGGING
-      while(true) {
-        int next_index = check_loc(working_index);
-        if (next_index == -1)
-          working_index += thread_group.size();
-        else if (next_index == vector_length)
-          break;
-      }
-
-      thread_group.sync();
-      tblock.sync();
-
-      x_initial = 0.0;
-      x_final = 0.0;
-
-      tblock.sync();
-
-      x_initial[0][tblock.thread_rank()] = simt_branch_indices[this_branch_flag][thread_group.thread_rank()];
-      */
-
-      while(true) {
-        int next_index = check_loc(working_index);
-        if (next_index == -1)
-          working_index += thread_group.size();
-        else {
-          // sync
-          thread_group.sync();
-
-          // get the number of entries in the queue
-          int queue_fill_size = map_branch_indices[this_branch_flag] - 1;
-          if (queue_fill_size < 0) queue_fill_size = PARALLEL_SIMT_SIZE;
-
-          if (queue_fill_size > 0) {
-            // do work for queue_fill_size entries
-            VECTOR_LAMBDA_CG(thread_group, queue_fill_size,
-                             [&](size_t& ii) {
-                               size_t sbi = simt_branch_indices[this_branch_flag][ii];
-                               if (this_branch_flag == 0)
-                                 x_initial[0][sbi] = 10.0;
-                               else
-                                 x_initial[0][sbi] = 20.0;
-                             });
-
-            // reset the queue
-            if (thread_group.thread_rank() == 0)
-              map_branch_indices[this_branch_flag] = 1;
-
-            // sync threads in this group
-            thread_group.sync();
-          } else {
-            // we didn't have work to do so break
-            break;
-          }
-        }
-      }
-
-      tblock.sync();
+      task_queue.execute<2>(branch_selector, branch_selector_finished, branch_tasks);
 
       x_final = x_initial;
 
