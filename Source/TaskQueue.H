@@ -1,10 +1,6 @@
 #ifndef TASK_QUEUE_H
 #define TASK_QUEUE_H
 
-#ifdef AMREX_USE_CUDA
-#include <cooperative_groups.h>
-#endif
-
 #include "AMReX_GpuQualifiers.H"
 #include "AMReX_Extension.H"
 
@@ -12,12 +8,18 @@
 #include "VectorStorage.H"
 #include "VectorParallelUtil.H"
 
+#ifdef AMREX_USE_CUDA
+#include <cooperative_groups.h>
 namespace cg = cooperative_groups;
+#endif
 
-template<size_t Nq, size_t ThreadsPerGroup> class TaskQueue {
-  MathVectorSet<size_t, 2, PARALLEL_SIMT_SIZE,
+template<size_t Nq = 0, size_t ThreadsPerGroup = 0> class TaskQueue {
+
+#ifdef __CUDA_ARCH__
+  MathVectorSet<size_t, Nq, PARALLEL_SIMT_SIZE,
                 StackCreate<size_t, PARALLEL_SIMT_SIZE>> simt_branch_indices;
-  MathVector<unsigned int, 2, StackCreate<unsigned int, 2>> map_branch_indices;
+  MathVector<unsigned int, Nq, StackCreate<unsigned int, Nq>> map_branch_indices;
+#endif
 
 public:
 
@@ -29,32 +31,34 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void init() {
+#ifdef __CUDA_ARCH__
     map_branch_indices.init();
     simt_branch_indices.init();
+#endif
   }
 
-  template<size_t NumberActiveQueues, typename AnyLambdaSelector, typename AnyLambdaSelectorFinished, typename AnyLambdaTask>
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE  
+  template<size_t NumberActiveQueues, int MaximumIndex = -1, typename AnyLambdaSelector, typename AnyLambdaSelectorFinished, typename AnyLambdaTask>
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void execute(AnyLambdaSelector selector_lambda, AnyLambdaSelectorFinished selector_finished_lambda, AnyLambdaTask tasks_lambda) {
 #ifdef __CUDA_ARCH__
-    auto tblock = cg::this_thread_block();
+    auto thread_block = cg::this_thread_block();
 
     map_branch_indices = 1;
 
-    tblock.sync();
+    thread_block.sync();
 
-    // make 2 thread groups.
-    cg::thread_block_tile<ThreadsPerGroup> thread_group = cg::tiled_partition<ThreadsPerGroup>(tblock);
+    cg::thread_block_tile<ThreadsPerGroup> thread_group = cg::tiled_partition<ThreadsPerGroup>(thread_block);
 
     // figure out which branch to take with this group of threads
-    int this_branch_flag = tblock.thread_rank() / thread_group.size();
+    int this_branch_flag = thread_block.thread_rank() / thread_group.size();
 
     int working_index = thread_group.thread_rank();
 
     auto check_loc = [&](int widx)->int {
-                       if (selector_finished_lambda(widx)) return -2;
+                       if (selector_finished_lambda(widx) ||
+                           (MaximumIndex >= 0 && widx >= MaximumIndex)) return -2;
 
-                       if (selector_lambda(this_branch_flag, widx)) {
+                       if (selector_lambda(widx) == this_branch_flag) {
                          if (map_branch_indices[this_branch_flag] == 0) return widx;
                          unsigned int imap = atomicInc(&map_branch_indices[this_branch_flag], PARALLEL_SIMT_SIZE+1);
                          imap--;
@@ -75,14 +79,14 @@ public:
        }
 
        thread_group.sync();
-       tblock.sync();
+       thread_block.sync();
 
        x_initial = 0.0;
        x_final = 0.0;
 
-       tblock.sync();
+       thread_block.sync();
 
-       x_initial[0][tblock.thread_rank()] = simt_branch_indices[this_branch_flag][thread_group.thread_rank()];
+       x_initial[0][thread_block.thread_rank()] = simt_branch_indices[this_branch_flag][thread_group.thread_rank()];
     */
 
     if (this_branch_flag < NumberActiveQueues) {
@@ -120,7 +124,13 @@ public:
       }
     }
 
-    tblock.sync();
+    thread_block.sync();
+#else
+    VECTOR_LAMBDA(MaximumIndex,
+                  [&](size_t& widx) {
+                    int this_branch_flag = selector_lambda(widx);
+                    tasks_lambda(this_branch_flag, widx);
+                  });
 #endif
   }
 };
