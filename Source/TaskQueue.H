@@ -69,26 +69,6 @@ public:
                        return -1;
                      };
 
-    /* // FOR DEBUGGING
-       while(true) {
-       int next_index = check_loc(working_index);
-       if (next_index == -1)
-       working_index += thread_group.size();
-       else if (next_index == vector_length)
-       break;
-       }
-
-       thread_group.sync();
-       thread_block.sync();
-
-       x_initial = 0.0;
-       x_final = 0.0;
-
-       thread_block.sync();
-
-       x_initial[0][thread_block.thread_rank()] = simt_branch_indices[this_branch_flag][thread_group.thread_rank()];
-    */
-
     if (this_branch_flag < NumberActiveQueues) {
       while(true) {
         int next_index = check_loc(working_index);
