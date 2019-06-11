@@ -13,10 +13,10 @@ template<typename StoreType, size_t alloc_size>
 class StackCreate {
 public:
   StoreType data[alloc_size];
-  size_t stored_size;
+  static const size_t stored_size = alloc_size;
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  StackCreate() : stored_size(alloc_size) {}
+  StackCreate() {}
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   ~StackCreate() {}
@@ -28,16 +28,10 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void init(size_t array_max_size = alloc_size) {
-    SINGLE_LAMBDA([&](){ stored_size = min(alloc_size, array_max_size); });
-    WORKER_SYNC();
-  }
-
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void map(StoreType* array, size_t array_max_size) {
-    init(array_max_size);
+    size_t map_length = min(array_max_size, alloc_size);
 
-    VECTOR_LAMBDA(stored_size,
+    VECTOR_LAMBDA(map_length,
                   [&](size_t& i) {
                     data[i] = array[i];
                   });
@@ -45,7 +39,8 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void save(StoreType* array, size_t size_to_save = alloc_size) {
-    size_t save_length = min(size_to_save, stored_size);
+    size_t save_length = min(size_to_save, alloc_size);
+
     VECTOR_LAMBDA(save_length,
                   [&](size_t& i) {
                     array[i] = data[i];
@@ -70,12 +65,6 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   StoreType& operator[](AnyIndexType i) {
     return data[i];
-  }
-
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void init() {
-    SINGLE_LAMBDA([&](){ stored_size = 0; });
-    WORKER_SYNC();
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -107,13 +96,7 @@ public:
   int comp;    // this is which component of the Fab we map to
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  FabWindow() : comp(0), stored_size(0) {
-    fab_begin.x = 0; fab_begin.y = 0; fab_begin.z = 0;
-    fab_end.x = 0; fab_end.y = 0; fab_end.z = 0;
-    tile_lo.x = 0; tile_lo.y = 0; tile_lo.z = 0;
-    tile_hi.x = 0; tile_hi.y = 0; tile_hi.z = 0;
-    tile_dim.x = 0; tile_dim.y = 0; tile_dim.z = 0;
-  }
+  FabWindow() {}
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   ~FabWindow() {}
@@ -137,12 +120,6 @@ public:
     const auto array = amrex::Array4<StoreType>(data, fab_begin, fab_end);
 
     return array(idx, jdx, kdx, comp);
-  }
-
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void init() {
-    SINGLE_LAMBDA([&](){ stored_size = 0; });
-    WORKER_SYNC();
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE

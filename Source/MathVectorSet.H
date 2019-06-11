@@ -101,13 +101,6 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void init(size_t array_comp_size = Nvec) {
-    for(size_t iset = 0; iset < Nset; iset++) {
-      data[iset].init(array_comp_size);
-    }
-  }  
-
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& map(MathType* const array, size_t array_comp_size, int chunk_index = -1,
            const int src_comp = 0, const int dst_comp = 0, const int num_comp = 1) {
 

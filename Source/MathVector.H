@@ -16,7 +16,6 @@ class MathVector : public StorageType {
 public:
 
   using StorageType::data;
-  using StorageType::init;
   using StorageType::map;
   using StorageType::save;
   using StorageType::stored_size;

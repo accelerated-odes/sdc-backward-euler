@@ -29,14 +29,6 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   ~TaskQueue() {}
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void init() {
-#ifdef __CUDA_ARCH__
-    map_branch_indices.init();
-    simt_branch_indices.init();
-#endif
-  }
-
   template<size_t NumberActiveQueues, int MaximumIndex = -1, typename AnyLambdaSelector, typename AnyLambdaSelectorFinished, typename AnyLambdaTask>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void execute(AnyLambdaSelector selector_lambda, AnyLambdaSelectorFinished selector_finished_lambda, AnyLambdaTask tasks_lambda) {

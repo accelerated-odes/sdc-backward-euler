@@ -43,8 +43,6 @@ void doit(Real* y_initial, Real* y_final, size_t array_comp_size,
       x_final.map(y_final, array_comp_size, array_chunk_index,
                   0, 0, vector_set_length);
 
-      task_queue.init();
-
       WORKER_SYNC();
 
       auto branch_selector = [&](const int& widx)->int {
