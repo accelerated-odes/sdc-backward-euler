@@ -15,46 +15,6 @@
 
 using namespace amrex;
 
-
-#ifdef AMREX_USE_CUDA
-template<int threads_per_block, size_t vector_set_length, size_t vector_length, class StorageType>
-__global__
-void index_test(Real* y_initial, Real* y_final, size_t array_comp_size,
-                int array_chunk_index = -1)
-{
-  PARALLEL_SHARED MathVectorSet<Real, vector_set_length, vector_length, StorageType> x_initial;
-  PARALLEL_SHARED MathVectorSet<Real, vector_set_length, vector_length, StorageType> x_final;
-
-  const int number_branches = 3;
-  const int threads_per_group = threads_per_block/number_branches;
-
-  PARALLEL_REGION
-    {
-      x_initial.map(y_initial, array_comp_size, array_chunk_index,
-                    0, 0, vector_set_length);
-      x_final.map(y_final, array_comp_size, array_chunk_index,
-                  0, 0, vector_set_length);
-
-      WORKER_SYNC();
-
-      x_final = -1.0;
-
-      auto tblock = cg::this_thread_block();
-
-      cg::thread_block_tile<threads_per_group> thread_group = cg::tiled_partition<threads_per_group>(tblock);
-
-      int this_branch_flag = tblock.thread_rank() / thread_group.size();
-
-      int working_index = thread_group.thread_rank();
-
-      x_final[0][tblock.thread_rank()] = tblock.thread_rank() * 10000 + thread_group.thread_rank() * 100 + this_branch_flag + 10000000;
-
-      x_final.save(y_final, array_comp_size, array_chunk_index,
-                   0, 0, vector_set_length);
-    }
-}
-#endif
-
 #ifdef AMREX_USE_CUDA
 template<int threads_per_block, size_t vector_set_length, size_t vector_length, class StorageType>
 __global__
@@ -173,7 +133,6 @@ int main(int argc, char* argv[]) {
   // M = nVectorSize * nVectorSets
   // so we need ceil(N/M) threadblocks
   const int nBlocks = static_cast<int>(ceil(((double) N)/((double) nVectorSize * nVectorSets)));
-  //const int nBlocks = 1;
 
   //const size_t size_per_component = static_cast<size_t>(N/nVectorSets);
   const size_t size_per_component = N;
