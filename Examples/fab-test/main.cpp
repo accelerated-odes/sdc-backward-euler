@@ -8,7 +8,7 @@
 
 #include "VectorParallelUtil.H"
 #include "VectorStorage.H"
-#include "RealVectorSet.H"
+#include "MathVectorSet.H"
 
 using namespace amrex;
 
@@ -27,10 +27,10 @@ void do_some_math(Real* fabptr,
   const Dim3 tile_size = {tile_size_1, tile_size_2, tile_size_3};
   const Dim3 tile_idx = {tile_idx_1, tile_idx_2, tile_idx_3};
 
-  PARALLEL_SHARED RealVectorSet<ncomp, vector_length,
+  PARALLEL_SHARED MathVectorSet<Real, ncomp, vector_length,
                                 FabWindow<Real>> fabvset;
 
-  PARALLEL_SHARED RealVectorSet<ncomp, vector_length,
+  PARALLEL_SHARED MathVectorSet<Real, ncomp, vector_length,
                                 StackCreate<Real, vector_length>> scratch_vset;
 
   PARALLEL_REGION
