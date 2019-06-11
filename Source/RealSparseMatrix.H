@@ -3,24 +3,20 @@
 #include <iostream>
 #include <cassert>
 #include <cmath>
+
 #include "AMReX_REAL.H"
 #include "AMReX_CONSTANTS.H"
-#include "IntegerVector.H"
-#include "RealVector.H"
+
+#include "MathVectorSet.H"
+#include "MathVector.H"
 
 using namespace amrex;
 
-template<size_t N, size_t NNZ, size_t vector_length> class RealSparseMatrixSet : public RealVectorSet<NNZ, vector_length> {
-    IntegerVector<NNZ> col_index;
-    IntegerVector<N+1> row_count;
+template<size_t N, size_t NNZ, size_t vector_length> class RealSparseMatrixSet {
+  MathVector<int, NNZ> col_index;
+  MathVector<int, N+1> row_count;
+  MathVectorSet<Real, NNZ, vector_length> data;
 public:
-
-  using RealVectorSet<NNZ, vector_length>::operator[];
-  using RealVectorSet<NNZ, vector_length>::operator=;
-  using RealVectorSet<NNZ, vector_length>::operator+=;
-  using RealVectorSet<NNZ, vector_length>::operator-=;
-  using RealVectorSet<NNZ, vector_length>::operator*=;
-  using RealVectorSet<NNZ, vector_length>::operator/=;
 
   using ThisType = RealSparseMatrixSet<N, NNZ, vector_length>;
 
@@ -28,8 +24,8 @@ public:
   RealSparseMatrixSet() {}
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  RealSparseMatrixSet(IntegerVector<NNZ>& input_col_index,
-                      IntegerVector<N+1>& input_row_count) {
+  RealSparseMatrixSet(MathVector<int, NNZ>& input_col_index,
+                      MathVector<int, N+1>& input_row_count) {
     set_csr_layout(input_col_index, input_row_count);
   }
 
@@ -49,9 +45,21 @@ public:
     std::cout << std::endl << std::endl;
   }
 
+  template<typename AnyMathType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  ThisType& set_csr_layout(IntegerVector<NNZ>& input_col_index,
-                           IntegerVector<N+1>& input_row_count) {
+  ThisType& operator=(AnyMathType source) {
+    data = source;
+    return *this;
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  MathVector<Real, vector_length>& operator[](size_t i) {
+    return data[i];
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  ThisType& set_csr_layout(MathVector<int, NNZ>& input_col_index,
+                           MathVector<int, N+1>& input_row_count) {
     col_index = input_col_index;
     row_count = input_row_count;
 
@@ -76,7 +84,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  RealVector<vector_length>& operator()(size_t i, size_t j) {
+  MathVector<Real, vector_length>& operator()(size_t i, size_t j) {
     // i: row index [0, N-1]
     // j: col index [0, N-1]
     int csr_loc = lookup_csr_location(i, j);
