@@ -76,11 +76,7 @@ public:
 
           if (queue_fill_size > 0) {
             // do work for queue_fill_size entries
-            VECTOR_LAMBDA_CG(thread_group, queue_fill_size,
-                             [&](size_t& ii) {
-                               size_t sbi = simt_branch_indices[this_branch_flag][ii];
-                               tasks_lambda(this_branch_flag, sbi);
-                             });
+            tasks_lambda(thread_group, simt_branch_indices[this_branch_flag], queue_fill_size, this_branch_flag);
 
             // reset the queue
             if (thread_group.thread_rank() == 0)

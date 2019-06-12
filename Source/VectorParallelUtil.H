@@ -132,6 +132,20 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
     }                                                   \
   })
 
+#define VECTOR_SET_LAMBDA_CG(group, Nset, Nvec, lambda) ({             \
+    size_t nstrides = static_cast<size_t>(Nset * Nvec) / group.size(); \
+    if ((Nset * Nvec) % group.size() > 0.0) nstrides++;                \
+                                                                       \
+    for (size_t n = 0; n < nstrides; n++) {                            \
+      size_t idx = group.thread_rank() + n * group.size();             \
+      if (idx < Nset * Nvec) {                                         \
+        size_t iset = idx / Nvec;                                      \
+        size_t ivec = idx % Nvec;                                      \
+        lambda(iset, ivec);                                            \
+      }                                                                \
+    }                                                                  \
+  })
+
 #define VECTOR_LAMBDA_CG(group, N, lambda) ({              \
     size_t nstrides = static_cast<size_t>(N)/group.size(); \
     if (N % group.size() > 0) nstrides++;                  \
