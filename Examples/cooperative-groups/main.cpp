@@ -30,7 +30,7 @@ void doit(Real* y_initial, Real* y_final, size_t array_comp_size,
   const size_t number_branches = 3;
 
 #ifdef AMREX_USE_CUDA
-  const size_t threads_per_group = threads_per_block/number_branches;
+  const size_t threads_per_group = PARALLEL_SIMT_SIZE;
   PARALLEL_SHARED TaskQueue<number_branches, threads_per_group> task_queue;
 #else
   PARALLEL_SHARED TaskQueue<number_branches> task_queue;
@@ -133,7 +133,7 @@ int main(int argc, char* argv[]) {
   const int nVectorSets = 3;    // each vectorset contains 3 components
 
   // how many threads per block to use for CUDA
-  const int nThreads = 3 * 32;
+  const int nThreads = 4 * 32;
 
   // each block operates on a number of elements M in the global array
   // M = nVectorSize * nVectorSets
