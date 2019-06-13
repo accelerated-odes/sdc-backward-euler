@@ -30,21 +30,22 @@ public:
     csr_row_count[3] = 8;
   }
 
-  template<size_t Nvec, typename AnyLambdaType,
+  template<size_t Nvec, typename AnyLambdaType1, typename AnyLambdaType2,
            typename AnyStorageType1,
            typename AnyStorageType2,
            typename AnyStorageType3>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void evaluate(const MathVector<Real, Nvec, AnyStorageType1>& time_vec,
-                       const MathVectorSet<Nvec, neqs, AnyStorageType2>& y_vec,
-                       MathVectorSet<Nvec, neqs, AnyStorageType3>& dydt_vec,
-                       AnyLambdaType check_todo) {
+                       const MathVectorSet<Real, Nvec, neqs, AnyStorageType2>* y_vec,
+                       MathVectorSet<Real, Nvec, neqs, AnyStorageType3>* dydt_vec,
+                       AnyLambdaType1 node_map,
+                       AnyLambdaType2 check_todo) {
 
     VECTOR_SET_LAMBDA(neqs, Nvec,
                       [&](const size_t& ieq, const size_t& ivec) {
                         if (check_todo(ivec)) {
-                          auto y = y_vec[ivec];
-                          auto dydt = dydt_vec[ivec];
+                          auto y = y_vec[node_map(ivec)][ivec];
+                          auto dydt = dydt_vec[node_map(ivec)][ivec];
 
                           switch(ieq)
                             {
@@ -61,24 +62,25 @@ public:
     WORKER_SYNC();
   }
 
-  template<size_t Nvec, typename AnyLambdaType,
+  template<size_t Nvec, typename AnyLambdaType1, typename AnyLambdaType2,
            typename AnyStorageType1,
            typename AnyStorageType2,
            typename AnyStorageType3,
            typename AnyStorageType4>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   static void evaluate(const MathVector<Real, Nvec, AnyStorageType1>& time_vec,
-                       const MathVectorSet<Nvec, neqs, AnyStorageType2>& y_vec,
-                       MathVectorSet<Nvec, neqs, AnyStorageType3>& dydt_vec,
+                       const MathVectorSet<Real, Nvec, neqs, AnyStorageType2>* y_vec,
+                       MathVectorSet<Real, Nvec, neqs, AnyStorageType3>* dydt_vec,
                        RealSparseMatrixSet<SystemClass::neqs, vector_length, SystemClass::nnz, AnyStorageType4> jac_vec,
-                       AnyLambdaType check_todo) {
+                       AnyLambdaType1 node_map,
+                       AnyLambdaType2 check_todo) {
 
-    evaluate<Nvec>(time_vec, y_vec, dydt_vec, check_todo);
+    evaluate<Nvec>(time_vec, y_vec, dydt_vec, node_map, check_todo);
 
     VECTOR_SET_LAMBDA(nnz, Nvec,
                       [&](const size_t& inz, const size_t& ivec) {
                         if (check_todo(ivec)) {
-                          auto y = y_vec[ivec];
+                          auto y = y_vec[node_map(ivec)][ivec];
                           auto jac = jac_vec[ivec];
 
                           switch(inz)
