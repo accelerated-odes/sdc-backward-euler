@@ -24,7 +24,7 @@ template<typename EnumClass> auto enum_class_integer(EnumClass const value) ->
   return static_cast<typename std::underlying_type<EnumClass>::type>(value);
 };
 
-template<class SparseLinearSolver, class SystemClass, size_t order, size_t vector_length> class SdcIntegrator {
+template<class SparseLinearSolver, class SystemClass, size_t order, size_t vector_length, typename InternalStorageType> class SdcIntegrator {
   const size_t number_nodes = order - 1;
 
   const Real dt_control_S1 = 0.9;
@@ -38,25 +38,32 @@ template<class SparseLinearSolver, class SystemClass, size_t order, size_t vecto
   Real time_target;
 
   // Vector state data
-  SdcStatus status[vector_length];
-  MathVector<size_t, vector_length> step_counter, sdc_counter, node_counter, newton_counter;
+  MathVector<SdcStatus, vector_length, InternalStorageType> status;
+  MathVector<size_t, vector_length, InternalStorageType> step_counter, sdc_counter, node_counter, newton_counter;
 
-  MathVector<Real, vector_length> time_previous, time_step, newton_error;
-  MathVectorSet<Real, number_nodes, vector_length> time_nodes;
-  MathVectorSet<Real, vector_length, SystemClass::neqs> q_node, y_delta, implicit_rhs;
+  MathVector<Real, vector_length, InternalStorageType> time_previous, time_step, newton_error;
+  MathVectorSet<Real, number_nodes, vector_length, InternalStorageType> time_nodes;
+  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType> q_node, y_delta, implicit_rhs;
 
-  RealSparseMatrixSet<SystemClass::neqs, SystemClass::nnz, vector_length> j_new;
+  RealSparseMatrixSet<SystemClass::neqs, vector_length, SystemClass::nnz, InternalStorageType> j_new;
 
-  MathVectorSet<Real, vector_length, SystemClass::neqs> f_new[number_nodes];
-  MathVectorSet<Real, vector_length, SystemClass::neqs> f_old[number_nodes];
-  MathVectorSet<Real, vector_length, SystemClass::neqs> y_old[number_nodes];
-  MathVectorSet<Real, vector_length, SystemClass::neqs> y_new[number_nodes];
+  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType> f_new[number_nodes];
+  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType> f_old[number_nodes];
+  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType> y_old[number_nodes];
+  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType> y_new[number_nodes];
 
   // The rule for using scratch space is that it should be treated as if it only
   // has local scope and does not retain memory across function calls.
   // It is useful for evaluating norms and otherwise getting results from
   // component-wise vectorized operations.
-  MathVector<Real, vector_length> scratch;
+  MathVector<Real, vector_length, InternalStorageType> scratch;
+
+  auto check_todo = [&](const size_t& i)->bool {
+                      if (i >= vector_length) return false;
+                      else if (status[i] != SdcStatus::Completed &&
+                               status[i] != SdcStatus::Failed) return true;
+                      else return false;
+                    };
 
 public:
 
@@ -82,7 +89,7 @@ public:
                     maximum_steps = max_steps;
                     small = epsilon;
 
-                    status = SdcStatus::StartTimestep;
+                    status = SdcStatus::StartIntegrator;
                   });
 
     time_previous = start_time;
@@ -227,7 +234,7 @@ public:
                               guess_new_solution(thread_group, map, map_size);
 
                               VECTOR_LAMBDA_CG(thread_group, map_size,
-                                               [&](size_t& imap) {
+                                               [&](const size_t& imap) {
                                                  const size_t k = map[imap];
 
                                                  newton_error[k] = 1.0e30;
@@ -244,7 +251,7 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void solve() {
-    SparseLinearSolver::solve(j_new, y_delta, implicit_rhs, status);
+    SparseLinearSolver::solve(j_new, y_delta, implicit_rhs, check_todo);
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -414,8 +421,9 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void evaluate_system() {
-    // Evaluate F and Jac at y_new to set f_new and j_new
-    SystemClass::evaluate(time_nodes, y_new, f_new, j_new, node_counter, status);
+    // Evaluate F and Jac at y_new to set f_new at the current node and j_new
+    auto node_map = [&](const size_t& i) constexpr -> size_t& { return node_counter[i]; };
+    SystemClass::evaluate(time_nodes, y_new, f_new, j_new, node_map, check_todo);
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -438,7 +446,7 @@ public:
                             const int& map_size, const int& branch) {
                           if (branch == 0) {
                             VECTOR_LAMBDA_CG(thread_group, map_size,
-                                             [&](size_t& imap) {
+                                             [&](const size_t& imap) {
                                                const size_t k = map[imap];
 
                                                scratch[k] = (time_nodes[node_counter[k]-1] -
@@ -511,6 +519,7 @@ public:
                                                 5.0e0*f_old[2][k][ieq]);
                            }
                          });
+
     thread_group.sync();
   }
 
@@ -520,14 +529,14 @@ public:
     // along with time_previous
 
     VECTOR_LAMBDA_CG(thread_group, map_size,
-                     [&](size_t& imap) {
+                     [&](const size_t& imap) {
                        const size_t k = map[imap];
 
                        time_previous[k] = time_nodes[number_nodes-1][k];
                      });
 
     VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
-                         [&](size_t& imap, size_t& ieq) {
+                         [&](const size_t& imap, const size_t& ieq) {
                            const size_t k = map[imap];
 
                            y_old[0][k][ieq] = y_new[number_nodes-1][k][ieq];
@@ -537,7 +546,7 @@ public:
                          });
 
     VECTOR_LAMBDA_CG(thread_group, map_size,
-                     [&](size_t& imap) {
+                     [&](const size_t& imap) {
                        const size_t k = map[imap];
 
                        Real tnow = time_nodes[number_nodes-1][k];
@@ -560,7 +569,8 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void initialize_start() {
     // Evaluate the system at y_old and set y_old and f_old for nodes
-    SystemClass::evaluate(time_nodes[0], y_old[0], f_old[0]);
+    auto node_map = [&](const size_t& i) constexpr -> size_t { return 0; };
+    SystemClass::evaluate(time_nodes, y_old, f_old, node_map, check_todo);
 
     WORKER_SYNC();
   }
@@ -570,7 +580,7 @@ public:
     // Set old y, f to their old values at node 0.
     for (size_t i = 1; i < number_nodes; i++) {
       VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
-                           [&](size_t& imap, size_t& ieq) {
+                           [&](const size_t& imap, const size_t& ieq) {
                              const size_t k = map[imap];
 
                              y_old[i][k][ieq] = y_old[0][k][ieq];
@@ -581,7 +591,7 @@ public:
     // Set evenly spaced node times
     for (size_t i = 0; i < number_nodes; i++) {
       VECTOR_LAMBDA_CG(thread_group, map_size,
-                       [&](size_t& imap) {
+                       [&](const size_t& imap) {
                          const size_t k = map[imap];
 
                          time_nodes[i][k] = time_step[k];
@@ -597,7 +607,7 @@ public:
   void save_sdc_iteration(WarpType thread_group, const BranchIndexType& map, const int& map_size) {
     for (size_t i = 1; i < number_nodes; i++) {
       VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
-                           [&](size_t& imap, size_t& ieq) {
+                           [&](const size_t& imap, const size_t& ieq) {
                              const size_t k = map[imap];
 
                              y_old[i][k][ieq] = y_new[i][k][ieq];
