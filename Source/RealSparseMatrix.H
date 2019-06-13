@@ -9,23 +9,29 @@
 
 #include "MathVectorSet.H"
 #include "MathVector.H"
+#include "VectorStorage.H"
 
 using namespace amrex;
 
-template<size_t N, size_t NNZ, size_t vector_length> class RealSparseMatrixSet {
-  MathVector<int, NNZ> col_index;
-  MathVector<int, N+1> row_count;
-  MathVectorSet<Real, NNZ, vector_length> data;
+template<size_t N, size_t NNZ, size_t vector_length, typename InternalStorageType>
+class RealSparseMatrixSet {
+
+  MathVector<int, NNZ, InternalStorageType> col_index;
+  MathVector<int, N+1, InternalStorageType> row_count;
+
 public:
 
-  using ThisType = RealSparseMatrixSet<N, NNZ, vector_length>;
+  MathVectorSet<Real, vector_length, NNZ, InternalStorageType> data;
+
+  using ThisType = RealSparseMatrixSet<N, vector_length, NNZ, InternalStorageType>;
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   RealSparseMatrixSet() {}
 
+  template<typename AnyStorageType1, typename AnyStorageType2>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  RealSparseMatrixSet(MathVector<int, NNZ>& input_col_index,
-                      MathVector<int, N+1>& input_row_count) {
+  RealSparseMatrixSet(MathVector<int, NNZ, AnyStorageType1>& input_col_index,
+                      MathVector<int, N+1, AnyStorageType2>& input_row_count) {
     set_csr_layout(input_col_index, input_row_count);
   }
 
@@ -53,13 +59,24 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MathVector<Real, vector_length>& operator[](size_t i) {
+  MathVector<Real, NNZ>& operator[](size_t i) {
     return data[i];
   }
 
+  template<typename AnyMathType, typename AnyStorageType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  ThisType& set_csr_layout(MathVector<int, NNZ>& input_col_index,
-                           MathVector<int, N+1>& input_row_count) {
+  ThisType& operator*=(MathVector<AnyMathType, vector_length, AnyStorageType>& source) {
+    VECTOR_SET_LAMBDA(NNZ, vector_length,
+                      [&](const size_t& iset, const size_t& ivec) {
+                        data[ivec][iset] *= source[ivec];
+                      });
+    return *this;
+  }
+
+  template<typename AnyStorageType1, typename AnyStorageType2>
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  ThisType& set_csr_layout(MathVector<int, NNZ, AnyStorageType1>& input_col_index,
+                           MathVector<int, N+1, AnyStorageType2>& input_row_count) {
     col_index = input_col_index;
     row_count = input_row_count;
 
@@ -84,12 +101,12 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MathVector<Real, vector_length>& operator()(size_t i, size_t j) {
+  Real& operator()(size_t i, size_t j, size_t k) {
     // i: row index [0, N-1]
     // j: col index [0, N-1]
     int csr_loc = lookup_csr_location(i, j);
     assert(csr_loc != -1);
-    return (*this)[csr_loc];
+    return (*this)[k][csr_loc];
   }
 };
 
