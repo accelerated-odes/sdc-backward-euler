@@ -13,7 +13,7 @@
 
 using namespace amrex;
 
-template<size_t N, size_t NNZ, size_t vector_length, typename InternalStorageType>
+template<size_t N, size_t vector_length, size_t NNZ, typename InternalStorageType>
 class RealSparseMatrixSet {
 
   MathVector<int, NNZ, InternalStorageType> col_index;
