@@ -11,6 +11,9 @@
 #ifdef AMREX_USE_CUDA
 #include <cooperative_groups.h>
 namespace cg = cooperative_groups;
+
+typedef cg::thread_block_tile<PARALLEL_SIMT_SIZE> WarpType;
+typedef MathVector<size_t, PARALLEL_SIMT_SIZE, StackCreate<size_t, PARALLEL_SIMT_SIZE>> BranchIndexType;
 #endif
 
 template<size_t Nq = 0, size_t ThreadsPerGroup = 0> class TaskQueue {
