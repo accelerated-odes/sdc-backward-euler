@@ -45,15 +45,6 @@ public:
     return begin();
   }
 
-  virtual void print() {
-    size_t i = 0;
-    for (size_t i = 0; i < stored_size; i++) {
-      std::cout << this->data[i];
-      if (i < stored_size - 1) std::cout << " ";
-      i++;
-    }
-  }
-
   template<typename AnyMathType, typename AnyStorageType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator=(MathVector<AnyMathType, Nvec, AnyStorageType>& source) {
