@@ -33,12 +33,17 @@ void doit(Real* y_initial, Real* y_final, size_t array_comp_size,
 
       WORKER_SYNC();
 
-      x_final = 0.0;
-      x_initial += 1.0;
-      x_initial *= 2.0;
-      x_initial /= 4.0;
-      x_initial *= 2.0;
-      x_final = x_initial;
+      VECTOR_SET_LAMBDA(vector_set_length, vector_length,
+                        [&](const size_t& iset, const size_t& ivec) {
+                          x_final[iset][ivec] = 0.0;
+                          x_initial[iset][ivec] += 1.0;
+                          x_initial[iset][ivec] *= 2.0;
+                          x_initial[iset][ivec] /= 4.0;
+                          x_initial[iset][ivec] *= 2.0;
+                          x_final[iset][ivec] = x_initial[iset][ivec];
+                        });
+
+      WORKER_SYNC();
 
       x_final.save(y_final, array_comp_size, array_chunk_index,
                    0, 0, vector_set_length);
