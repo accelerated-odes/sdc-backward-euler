@@ -11,21 +11,24 @@
 #include "RealSparseMatrixSet.H"
 #include "VectorStorage.H"
 #include "VectorParallelUtil.H"
+#include "TaskQueue.H"
 
 #ifndef AMREX_USE_CUDA
 using std::min;
 using std::max;
 #endif
 
-enum class SdcStatus {Completed, Failed, StartIntegrator, StartTimestep, StartSDCIteration, StartNode, StartNewton};
+enum class SdcStatus {Completed, Failed, StartIntegrator, StartTimestep,
+                      StartSDCIteration, StartNode, StartNewton};
 
 template<typename EnumClass> auto enum_class_integer(EnumClass const value) ->
   typename std::underlying_type<EnumClass>::type {
   return static_cast<typename std::underlying_type<EnumClass>::type>(value);
 };
 
-template<class SparseLinearSolver, class SystemClass, size_t order, size_t vector_length, typename InternalStorageType> class SdcIntegrator {
-  const size_t number_nodes = order - 1;
+template<typename SparseLinearSolver, typename SystemClass, size_t order, size_t vector_length,
+         template<typename, size_t> typename InternalStorageType> class SdcIntegrator {
+  static const size_t number_nodes = order - 1;
 
   const Real dt_control_S1 = 0.9;
   const Real dt_control_S2 = 4.0;
@@ -37,46 +40,52 @@ template<class SparseLinearSolver, class SystemClass, size_t order, size_t vecto
   Real small, newton_tolerance;
   Real time_target;
 
-  // Vector state data
-  MathVector<SdcStatus, vector_length, InternalStorageType> status;
-  MathVector<size_t, vector_length, InternalStorageType> step_counter, sdc_counter, node_counter, newton_counter;
+  // Track system active status and indices
+  unsigned int num_active_systems;
+  MathVector<size_t, vector_length, InternalStorageType<size_t, vector_length>> active_systems;
 
-  MathVector<Real, vector_length, InternalStorageType> time_previous, time_step, newton_error;
-  MathVectorSet<Real, number_nodes, vector_length, InternalStorageType> time_nodes;
-  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType> q_node, y_delta, implicit_rhs;
+  // Vector state data
+  MathVector<SdcStatus, vector_length, InternalStorageType<SdcStatus, vector_length>> status;
+  MathVector<size_t, vector_length, InternalStorageType<size_t, vector_length>> step_counter, sdc_counter, node_counter, newton_counter;
+
+  MathVector<Real, vector_length, InternalStorageType<Real, vector_length>> time_previous, time_step, newton_error;
+  MathVectorSet<Real, number_nodes, vector_length, InternalStorageType<Real, vector_length>> time_nodes;
+  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType<Real, vector_length>> q_node, y_delta, implicit_rhs;
 
   RealSparseMatrixSet<SystemClass::neqs, vector_length, SystemClass::nnz, InternalStorageType> j_new;
 
-  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType> f_new[number_nodes];
-  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType> f_old[number_nodes];
-  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType> y_old[number_nodes];
-  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType> y_new[number_nodes];
+  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType<Real, SystemClass::neqs>> f_new[number_nodes];
+  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType<Real, SystemClass::neqs>> f_old[number_nodes];
+  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType<Real, SystemClass::neqs>> y_old[number_nodes];
+  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType<Real, SystemClass::neqs>> y_new[number_nodes];
 
   // The rule for using scratch space is that it should be treated as if it only
   // has local scope and does not retain memory across function calls.
   // It is useful for evaluating norms and otherwise getting results from
   // component-wise vectorized operations.
-  MathVector<Real, vector_length, InternalStorageType> scratch;
+  MathVector<Real, vector_length, InternalStorageType<Real, vector_length>> scratch;
 
-  auto check_todo = [&](const size_t& i)->bool {
-                      if (i >= vector_length) return false;
-                      else if (status[i] != SdcStatus::Completed &&
-                               status[i] != SdcStatus::Failed) return true;
-                      else return false;
-                    };
+#ifdef AMREX_USE_CUDA
+  TaskQueue<2, PARALLEL_SIMT_SIZE> task_queue;
+#else
+  TaskQueue<2> task_queue;
+#endif
 
 public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   SdcIntegrator() {}
 
+  template<typename AnyStorageType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void initialize(MathVectorSet<Real, vector_length, SystemClass::neqs>& y_init,
+  void initialize(SystemClass& ode_system,
+                  MathVectorSet<Real, vector_length, SystemClass::neqs, AnyStorageType>& y_init,
                   Real start_time, Real end_time, Real time_step_init = 0.0,
                   Real tolerance = 1.0e-6, size_t max_newton_iters=100,
                   bool fail_if_max_newton = true,
                   size_t max_steps = 1000000, Real epsilon = 2.5e-16,
-                  bool adaptive_timestep = true) {
+                  bool adaptive_timestep = true,
+                  size_t initial_num_systems = vector_length) {
 
     SINGLE_LAMBDA([&]() {
                     time_target = end_time;
@@ -90,7 +99,17 @@ public:
                     small = epsilon;
 
                     status = SdcStatus::StartIntegrator;
+
+                    num_active_systems = initial_num_systems;
                   });
+
+    VECTOR_LAMBDA(vector_length,
+                  [&](const size_t& i) {
+                    if (i < num_active_systems)
+                      active_systems[i] = i;
+                  });
+
+    set_jacobian_layout(ode_system);
 
     time_previous = start_time;
     time_nodes = time_previous;
@@ -100,7 +119,7 @@ public:
 
     step_counter = 0;
     sdc_counter = 1;
-    node_counter = 1;
+    node_counter = 0; // 0 for initialize_start, then we set to 1 to do the first node
     newton_counter = 0;
 
     for (size_t i = 0; i < number_nodes; i++) {
@@ -115,12 +134,46 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  void integrate() {
+    for (size_t i = 0; i < maximum_steps; i++) {
+      prepare();
+      solve();
+      update();
+      if (integrator_finished()) break;
+    }
+  }
+
+  template<typename AnyStorageType>
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  void save_current_solution(MathVectorSet<Real, SystemClass::neqs, vector_length, AnyStorageType> ysave) {
+    VECTOR_SET_LAMBDA(vector_length, SystemClass::neqs,
+                      [&](const size_t& ivec, const size_t& ieq) {
+                        auto ysol = y_new[node_counter[ivec]][ivec];
+
+                        ysave[ieq][ivec] = ysol[ieq];
+                      });
+
+    WORKER_SYNC();
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void set_jacobian_layout(SystemClass& ode_system) {
     j_new.set_csr_layout(ode_system.csr_col_index, ode_system.csr_row_count);
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   ~SdcIntegrator() {}
+
+  // auto check_todo = [&](const size_t& i)->bool {
+  //                     if (i >= vector_length) return false;
+  //                     else if (status[i] != SdcStatus::Completed &&
+  //                              status[i] != SdcStatus::Failed) return true;
+  //                     else return false;
+  //                   };
+
+  // auto node_map = [&](const size_t& i) constexpr -> size_t& { return node_counter[i]; };
+
+  // auto active_map = [&](const size_t& i) constexpr -> size_t& { return active_indices[i]; };
 
   void print() {
     VECTOR_LAMBDA(vector_length,
@@ -187,6 +240,10 @@ public:
 
     if (status[0] == SdcStatus::StartIntegrator) {
       initialize_start();
+
+      node_counter = 1;
+      WORKER_SYNC();
+
       initialize_nodes();
     }
 
@@ -201,7 +258,7 @@ public:
                                return (i >= vector_length);
                              };
 
-      auto branch_tasks = [&](WarpType thread_group, const BranchIndexType& map,
+      auto branch_tasks = [&](WarpType thread_group, BranchIndexType& map,
                               const int& map_size, const int& branch) {
                             if (branch == 0) {
                               initialize_step(thread_group, map, map_size);
@@ -227,7 +284,7 @@ public:
                                return (i >= vector_length);
                              };
 
-      auto branch_tasks = [&](WarpType thread_group, const BranchIndexType& map,
+      auto branch_tasks = [&](WarpType thread_group, BranchIndexType& map,
                               const int& map_size, const int& branch) {
                             if (branch == 0) {
                               evaluate_quadrature(thread_group, map, map_size);
@@ -251,7 +308,7 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void solve() {
-    SparseLinearSolver::solve(j_new, y_delta, implicit_rhs, check_todo);
+    SparseLinearSolver::solve(j_new, y_delta, implicit_rhs, active_systems, num_active_systems);
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -278,7 +335,7 @@ public:
                                return (i >= vector_length);
                              };
 
-      auto branch_tasks = [&](WarpType thread_group, const BranchIndexType& map,
+      auto branch_tasks = [&](WarpType thread_group, BranchIndexType& map,
                               const int& map_size, const int& branch) {
                             if (branch == 0) {
                               VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
@@ -311,7 +368,7 @@ public:
                                return (i >= vector_length);
                              };
 
-      auto branch_tasks = [&](WarpType thread_group, const BranchIndexType& map,
+      auto branch_tasks = [&](WarpType thread_group, BranchIndexType& map,
                               const int& map_size, const int& branch) {
                             if (branch == 0) {
                               VECTOR_LAMBDA_CG(thread_group, map_size,
@@ -341,7 +398,7 @@ public:
                              return (i >= vector_length);
                            };
 
-    auto branch_tasks = [&](WarpType thread_group, const BranchIndexType& map,
+    auto branch_tasks = [&](WarpType thread_group, BranchIndexType& map,
                             const int& map_size, const int& branch) {
                           if (branch == 0) {
 
@@ -422,8 +479,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void evaluate_system() {
     // Evaluate F and Jac at y_new to set f_new at the current node and j_new
-    auto node_map = [&](const size_t& i) constexpr -> size_t& { return node_counter[i]; };
-    SystemClass::evaluate(time_nodes, y_new, f_new, j_new, node_map, check_todo);
+    SystemClass::evaluate(time_nodes, y_new, f_new, j_new, node_counter, active_systems, num_active_systems);
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -442,15 +498,14 @@ public:
                              return (i >= vector_length);
                            };
 
-    auto branch_tasks = [&](WarpType thread_group, const BranchIndexType& map,
+    auto branch_tasks = [&](WarpType thread_group, BranchIndexType& map,
                             const int& map_size, const int& branch) {
                           if (branch == 0) {
                             VECTOR_LAMBDA_CG(thread_group, map_size,
                                              [&](const size_t& imap) {
                                                const size_t k = map[imap];
 
-                                               scratch[k] = (time_nodes[node_counter[k]-1] -
-                                                             time_nodes[node_counter[k]]);
+                                               scratch[k] = (time_nodes[node_counter[k]-1][k] - time_nodes[node_counter[k]][k]);
                                              });
 
                             thread_group.sync();
@@ -485,7 +540,31 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  bool is_finished(size_t k) {
+  bool integrator_finished() {
+    // return finished status for all systems
+    SINGLE_LAMBDA([&]() {
+                    num_active_systems = 0;
+                  });
+
+    WORKER_SYNC();
+
+    VECTOR_LAMBDA(vector_length,
+                  [&](const size_t& i) {
+                    if (!is_finished(i)) {
+                      unsigned int isys = atomicInc(&num_active_systems,
+                                                    static_cast<unsigned int>(vector_length+1));
+                      active_systems[isys] = i;
+                    }
+                  });
+
+    WORKER_SYNC();
+
+    return (num_active_systems == 0);
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  bool is_finished(const size_t k) {
+    // return finished status for vector index k
     return (status[k] == SdcStatus::Completed || status[k] == SdcStatus::Failed);
   }
 
@@ -496,7 +575,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void evaluate_quadrature(WarpType thread_group, const BranchIndexType& map, const int& map_size) {
+  void evaluate_quadrature(WarpType thread_group, BranchIndexType& map, const int& map_size) {
     // Use high order quadrature rule to set q_node
 
     // Right now this is hardcoded for simpson integration
@@ -524,7 +603,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void initialize_step(WarpType thread_group, const BranchIndexType& map, const int& map_size) {
+  void initialize_step(WarpType thread_group, BranchIndexType& map, const int& map_size) {
     // If we are advancing the step, then move y_old forward
     // along with time_previous
 
@@ -568,15 +647,12 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void initialize_start() {
-    // Evaluate the system at y_old and set y_old and f_old for nodes
-    auto node_map = [&](const size_t& i) constexpr -> size_t { return 0; };
-    SystemClass::evaluate(time_nodes, y_old, f_old, node_map, check_todo);
-
-    WORKER_SYNC();
+    // Evaluate the system at y_old and set y_old and f_old for nodes 0
+    SystemClass::evaluate(time_nodes, y_old, f_old, node_counter, active_systems, num_active_systems);
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void initialize_nodes(WarpType thread_group, const BranchIndexType& map, const int& map_size) {
+  void initialize_nodes(WarpType thread_group, BranchIndexType& map, const int& map_size) {
     // Set old y, f to their old values at node 0.
     for (size_t i = 1; i < number_nodes; i++) {
       VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
@@ -604,7 +680,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void save_sdc_iteration(WarpType thread_group, const BranchIndexType& map, const int& map_size) {
+  void save_sdc_iteration(WarpType thread_group, BranchIndexType& map, const int& map_size) {
     for (size_t i = 1; i < number_nodes; i++) {
       VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
                            [&](const size_t& imap, const size_t& ieq) {
@@ -619,7 +695,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void guess_new_solution(WarpType thread_group, const BranchIndexType& map, const int& map_size) {
+  void guess_new_solution(WarpType thread_group, BranchIndexType& map, const int& map_size) {
     VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
                          [&](const size_t& imap, const size_t& ieq) {
                            const size_t k = map[imap];
