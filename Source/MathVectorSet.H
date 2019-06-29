@@ -57,15 +57,6 @@ public:
     return begin();
   }
 
-  virtual void print() {
-    size_t i = 0;
-    for (size_t i = 0; i < Nset; i++) {
-      data[i].print();
-      std::cout << std::endl;
-      i++;
-    }
-  }
-
   template<typename AnyMathType, typename SourceStoreClass>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator=(MathVectorSet<AnyMathType, Nset, Nvec, SourceStoreClass>& source) {
