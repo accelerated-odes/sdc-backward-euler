@@ -13,15 +13,15 @@
 
 using namespace amrex;
 
-template<size_t N, size_t vector_length, size_t NNZ, typename InternalStorageType>
+template<size_t N, size_t vector_length, size_t NNZ, template<typename, size_t> typename InternalStorageType>
 class RealSparseMatrixSet {
 
-  MathVector<int, NNZ, InternalStorageType> col_index;
-  MathVector<int, N+1, InternalStorageType> row_count;
+  MathVector<int, NNZ, InternalStorageType<int, NNZ>> col_index;
+  MathVector<int, N+1, InternalStorageType<int, N+1>> row_count;
 
 public:
 
-  MathVectorSet<Real, vector_length, NNZ, InternalStorageType> data;
+  MathVectorSet<Real, vector_length, NNZ, InternalStorageType<Real, NNZ>> data;
 
   using ThisType = RealSparseMatrixSet<N, vector_length, NNZ, InternalStorageType>;
 
@@ -59,7 +59,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MathVector<Real, NNZ>& operator[](size_t i) {
+  MathVector<Real, NNZ, InternalStorageType<Real, NNZ>>& operator[](size_t i) {
     return data[i];
   }
 
