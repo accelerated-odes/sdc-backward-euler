@@ -40,19 +40,19 @@ public:
     WORKER_SYNC();
   }
 
-  template<size_t Nvec,
+  template<size_t Nvec, size_t Nnodes,
            template<typename, size_t> typename AnyStorageType1,
            template<typename, size_t> typename AnyStorageType2,
            template<typename, size_t> typename AnyStorageType3,
            template<typename, size_t> typename AnyStorageType4,
            template<typename, size_t> typename AnyStorageType5>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  static void evaluate(const MathVector<Real, Nvec, AnyStorageType1<Real, Nvec>>& time_vec,
-                       const MathVectorSet<Real, Nvec, neqs, AnyStorageType2<Real, neqs>>& y_vec,
-                       MathVectorSet<Real, Nvec, neqs, AnyStorageType3<Real, neqs>>& dydt_vec,
-                       const MathVector<size_t, Nvec, AnyStorageType4<size_t, Nvec>>& node_map,
-                       const MathVector<size_t, Nvec,
-                                        AnyStorageType5<size_t, Nvec>>& active_map,
+  static void evaluate(MathVectorSet<Real, Nnodes, Nvec, AnyStorageType1<Real, Nvec>>& time_vec,
+                       MathVectorSet<Real, Nvec, neqs, AnyStorageType2<Real, neqs>>* y_vec,
+                       MathVectorSet<Real, Nvec, neqs, AnyStorageType3<Real, neqs>>* dydt_vec,
+                       MathVector<size_t, Nvec, AnyStorageType4<size_t, Nvec>>& node_map,
+                       MathVector<size_t, Nvec,
+                                  AnyStorageType5<size_t, Nvec>>& active_map,
                        unsigned int num_active) {
 
     VECTOR_SET_LAMBDA(neqs, static_cast<size_t>(num_active),
@@ -76,7 +76,7 @@ public:
     WORKER_SYNC();
   }
 
-  template<size_t Nvec,
+  template<size_t Nvec, size_t Nnodes,
            template<typename, size_t> typename AnyStorageType1,
            template<typename, size_t> typename AnyStorageType2,
            template<typename, size_t> typename AnyStorageType3,
@@ -84,20 +84,20 @@ public:
            template<typename, size_t> typename AnyStorageType5,
            template<typename, size_t> typename AnyStorageType6>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  static void evaluate(const MathVector<Real, Nvec, AnyStorageType1<Real, Nvec>>& time_vec,
-                       const MathVectorSet<Real, Nvec, neqs, AnyStorageType2<Real, neqs>>& y_vec,
-                       MathVectorSet<Real, Nvec, neqs, AnyStorageType3<Real, neqs>>& dydt_vec,
+  static void evaluate(MathVectorSet<Real, Nnodes, Nvec, AnyStorageType1<Real, Nvec>>& time_vec,
+                       MathVectorSet<Real, Nvec, neqs, AnyStorageType2<Real, neqs>>* y_vec,
+                       MathVectorSet<Real, Nvec, neqs, AnyStorageType3<Real, neqs>>* dydt_vec,
                        RealSparseMatrixSet<neqs, Nvec, nnz, AnyStorageType4>& jac_vec,
-                       const MathVector<size_t, Nvec, AnyStorageType5<size_t, Nvec>>& node_map,
-                       const MathVector<size_t, Nvec,
-                                        AnyStorageType6<size_t, Nvec>>& active_map,
+                       MathVector<size_t, Nvec, AnyStorageType5<size_t, Nvec>>& node_map,
+                       MathVector<size_t, Nvec,
+                                  AnyStorageType6<size_t, Nvec>>& active_map,
                        unsigned int num_active) {
 
     evaluate<Nvec>(time_vec, y_vec, dydt_vec, node_map, active_map, num_active);
 
     VECTOR_SET_LAMBDA(nnz, static_cast<size_t>(num_active),
                       [&](const size_t& inz, const size_t& ivec) {
-                        const size_t& kvec = active_map[ivec];
+                        size_t& kvec = active_map[ivec];
 
                         auto y = y_vec[node_map[kvec]][kvec];
                         auto jac = jac_vec[kvec];
