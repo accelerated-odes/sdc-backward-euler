@@ -511,7 +511,7 @@ public:
                                                scratch[k] = (time_nodes[node_counter[k]-1][k] - time_nodes[node_counter[k]][k]);
                                              });
 
-                            thread_group.sync();
+                            WORKER_CG_SYNC(thread_group);
 
                             VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::nnz,
                                                  [&](const size_t& imap, const size_t& inz) {
@@ -520,7 +520,7 @@ public:
                                                    j_new[k][inz] *= scratch[k];
                                                  });
 
-                            thread_group.sync();
+                            WORKER_CG_SYNC(thread_group);
 
                             VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
                                                  [&](const size_t& imap, const size_t& ieq) {
@@ -602,7 +602,7 @@ public:
                            }
                          });
 
-    thread_group.sync();
+    WORKER_CG_SYNC(thread_group);
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -645,7 +645,7 @@ public:
                        }
                      });
 
-    thread_group.sync();
+    WORKER_CG_SYNC(thread_group);
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -703,7 +703,7 @@ public:
                        });
     }
 
-    thread_group.sync();
+    WORKER_CG_SYNC(thread_group);
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -718,7 +718,7 @@ public:
                            });
     }
 
-    thread_group.sync();
+    WORKER_CG_SYNC(thread_group);
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -733,7 +733,7 @@ public:
                              y_new[node_counter[k]][k][ieq] = y_new[node_counter[k]-1][k][ieq];
                          });
 
-    thread_group.sync();
+    WORKER_CG_SYNC(thread_group);
   }
 };
 #endif

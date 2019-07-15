@@ -166,6 +166,9 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 // The WORKER_SIMT_SYNC synchronizes the threads in the current warp.
 #define WORKER_SIMT_SYNC() ({ __syncwarp(); })
 
+// The WORKER_CG_SYNC synchronizes the threads in the group
+#define WORKER_CG_SYNC(group) ({ group.sync(); })
+
 #define SINGLE_LAMBDA(lambda) ({                        \
     if (threadIdx.x == 0)                               \
       lambda();                                         \
@@ -210,6 +213,8 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 
 #define WORKER_SIMT_SYNC() ({})
 
+#define WORKER_CG_SYNC(group) ({})
+
 #define SINGLE_LAMBDA(lambda) ({                        \
   if (omp_get_thread_num() == 0)                        \
     lambda();                                           \
@@ -248,6 +253,8 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 #define WORKER_SYNC() ({})
 
 #define WORKER_SIMT_SYNC() ({})
+
+#define WORKER_CG_SYNC(group) ({})
 
 #define SINGLE_LAMBDA(lambda) ({                        \
     lambda();                                           \
