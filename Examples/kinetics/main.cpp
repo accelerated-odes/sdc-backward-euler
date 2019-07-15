@@ -44,7 +44,7 @@ void do_sdc_kernel(Real* y_initial, Real* y_final,
       sdc.integrate();
 
       // save results to y_fin
-      sdc.save(y_fin);
+      sdc.save_current_solution(y_fin);
     }
 }
 #endif
