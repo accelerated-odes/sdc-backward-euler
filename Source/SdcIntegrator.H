@@ -50,7 +50,7 @@ template<typename SparseLinearSolver, typename SystemClass, size_t order, size_t
 
   MathVector<Real, vector_length, InternalStorageType<Real, vector_length>> time_previous, time_step, newton_error;
   MathVectorSet<Real, number_nodes, vector_length, InternalStorageType<Real, vector_length>> time_nodes;
-  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType<Real, vector_length>> q_node, y_delta, implicit_rhs;
+  MathVectorSet<Real, vector_length, SystemClass::neqs, InternalStorageType<Real, SystemClass::neqs>> q_node, y_delta, implicit_rhs;
 
   RealSparseMatrixSet<SystemClass::neqs, vector_length, SystemClass::nnz, InternalStorageType> j_new;
 
@@ -244,7 +244,7 @@ public:
       node_counter = 1;
       WORKER_SYNC();
 
-      initialize_nodes();
+      initialize_all_nodes();
     }
 
     {
@@ -649,6 +649,30 @@ public:
   void initialize_start() {
     // Evaluate the system at y_old and set y_old and f_old for nodes 0
     SystemClass::evaluate(time_nodes, y_old, f_old, node_counter, active_systems, num_active_systems);
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  void initialize_all_nodes() {
+    // Set old y, f to their old values at node 0.
+    for (size_t i = 1; i < number_nodes; i++) {
+      VECTOR_SET_LAMBDA(vector_length, SystemClass::neqs,
+                        [&](const size_t& k, const size_t& ieq) {
+                          y_old[i][k][ieq] = y_old[0][k][ieq];
+                          f_old[i][k][ieq] = f_old[0][k][ieq];
+                        });
+    }
+
+    // Set evenly spaced node times
+    for (size_t i = 0; i < number_nodes; i++) {
+      VECTOR_LAMBDA(vector_length,
+                    [&](const size_t& k) {
+                      time_nodes[i][k] = time_step[k];
+                      time_nodes[i][k] *= static_cast<Real>(i)/(number_nodes-1);
+                      time_nodes[i][k] += time_previous[k];
+                    });
+    }
+
+    WORKER_SYNC();
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
