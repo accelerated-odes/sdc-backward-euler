@@ -79,7 +79,7 @@ public:
   template<typename AnyStorageType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void initialize(SystemClass& ode_system,
-                  MathVectorSet<Real, vector_length, SystemClass::neqs, AnyStorageType>& y_init,
+                  MathVectorSet<Real, SystemClass::neqs, vector_length, AnyStorageType>& y_init,
                   Real start_time, Real end_time, Real time_step_init = 0.0,
                   Real tolerance = 1.0e-6, size_t max_newton_iters=100,
                   bool fail_if_max_newton = true,
@@ -114,8 +114,11 @@ public:
     time_previous = start_time;
     time_nodes = time_previous;
 
-    y_new[0] = y_init;
-    y_old[0] = y_init;
+    VECTOR_SET_LAMBDA(vector_length, SystemClass::neqs,
+                      [&](const size_t& ivec, const size_t& ieq) {
+                        y_new[0][ivec][ieq] = y_init[ieq][ivec];
+                        y_old[0][ivec][ieq] = y_init[ieq][ivec];
+                      });
 
     step_counter = 0;
     sdc_counter = 1;
