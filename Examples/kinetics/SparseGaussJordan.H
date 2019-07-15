@@ -13,14 +13,14 @@ public:
            template<typename,size_t> typename AnyStorageType3,
            template<typename,size_t> typename AnyStorageType4>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  static void solve(const RealSparseMatrixSet<SystemClass::neqs, SystemClass::nnz, vector_length,
-                                              AnyStorageType1>& Av,
+  static void solve(RealSparseMatrixSet<SystemClass::neqs, vector_length, SystemClass::nnz,
+                      AnyStorageType1>& Av,
                     MathVectorSet<Real, vector_length, SystemClass::neqs,
                                   AnyStorageType2<Real, SystemClass::neqs>>& xv,
-                    const MathVectorSet<Real, vector_length, SystemClass::neqs,
-                                        AnyStorageType3<Real, SystemClass::neqs>>& bv,
-                    const MathVector<size_t, vector_length,
-                                     AnyStorageType4<size_t, vector_length>>& active_map,
+                    MathVectorSet<Real, vector_length, SystemClass::neqs,
+                                  AnyStorageType3<Real, SystemClass::neqs>>& bv,
+                    MathVector<size_t, vector_length,
+                               AnyStorageType4<size_t, vector_length>>& active_map,
                     unsigned int num_active) {
 
     VECTOR_LAMBDA(static_cast<size_t>(num_active),
