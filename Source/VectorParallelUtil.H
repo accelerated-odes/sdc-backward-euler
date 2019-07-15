@@ -8,13 +8,12 @@
 #ifdef __CUDA_ARCH__
 #include "cuda_runtime.h"
 #include "AMReX_GpuUtility.H"
+using namespace amrex::Gpu::Atomic::detail;
 #endif
 
 #ifdef _OPENMP
 #include <omp.h>
 #endif
-
-using namespace amrex::Gpu::Atomic::detail;
 
 void get_tiling(const amrex::Box& bx, const size_t grid_size_per_block,
                 amrex::Dim3& kernel_tile_size, amrex::Dim3& kernel_num_blocks) {
