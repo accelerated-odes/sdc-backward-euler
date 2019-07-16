@@ -73,11 +73,11 @@ template<typename SparseLinearSolver, typename SystemClass, size_t order, size_t
 
 public:
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   SdcIntegrator() {}
 
   template<typename AnyStorageType>
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void initialize(SystemClass& ode_system,
                   MathVectorSet<Real, SystemClass::neqs, vector_length, AnyStorageType>& y_init,
                   Real start_time, Real end_time, Real time_step_init = 0.0,
@@ -136,7 +136,7 @@ public:
     WORKER_SYNC();
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void integrate() {
     for (size_t i = 0; i < maximum_steps; i++) {
       prepare();
@@ -147,7 +147,7 @@ public:
   }
 
   template<typename AnyStorageType>
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void save_current_solution(MathVectorSet<Real, SystemClass::neqs, vector_length, AnyStorageType> ysave) {
     VECTOR_SET_LAMBDA(vector_length, SystemClass::neqs,
                       [&](const size_t& ivec, const size_t& ieq) {
@@ -159,12 +159,12 @@ public:
     WORKER_SYNC();
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void set_jacobian_layout(SystemClass& ode_system) {
     j_new.set_csr_layout(ode_system.csr_col_index, ode_system.csr_row_count);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   ~SdcIntegrator() {}
 
   // auto check_todo = [&](const size_t& i)->bool {
@@ -216,28 +216,28 @@ public:
   // so there is no single object we can return ...
   // ... commented until I can think of a solution ...
   //
-  // AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  // AMREX_GPU_DEVICE AMREX_INLINE
   // RealVectorSet<SystemClass::neqs, vector_length>& get_previous_solution() {
   //   return y_new[sdc.node_counter-1];
   // }
 
-  // AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  // AMREX_GPU_DEVICE AMREX_INLINE
   // RealVector<vector_length>& get_previous_time() {
   //   return time_nodes[node_counter-1];
   // }
 
   // don -- need to fix this ...
-  // AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  // AMREX_GPU_DEVICE AMREX_INLINE
   // RealVectorSet<SystemClass::neqs, vector_length>& get_current_solution() {
   //   return y_new[node_counter];
   // }
 
-  // AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  // AMREX_GPU_DEVICE AMREX_INLINE
   // RealVector<vector_length>& get_current_time() {
   //   return time_nodes[node_counter];
   // }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void prepare() {
     // Set up the solve
 
@@ -309,18 +309,18 @@ public:
     setup_linear_system();
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void solve() {
     SparseLinearSolver::solve(j_new, y_delta, implicit_rhs, active_systems, num_active_systems);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void update() {
       update_solution();
       update_status();
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void update_solution() {
     // Use the results of the previous solve to check status
     // and update integration state & status
@@ -388,7 +388,7 @@ public:
     }
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void update_status() {
 
     auto branch_selector = [&](const int& i)->int {
@@ -479,13 +479,13 @@ public:
     task_queue.execute<1, vector_length>(branch_selector, branch_finished, branch_tasks);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void evaluate_system() {
     // Evaluate F and Jac at y_new to set f_new at the current node and j_new
     SystemClass::evaluate(time_nodes, y_new, f_new, j_new, node_counter, active_systems, num_active_systems);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void setup_linear_system() {
     // Set up the linear system A*x = b to solve.
     // Puts A into j_new in-place and puts b into implicit_rhs.
@@ -542,7 +542,7 @@ public:
     task_queue.execute<1, vector_length>(branch_selector, branch_finished, branch_tasks);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   bool integrator_finished() {
     // return finished status for all systems
     SINGLE_LAMBDA([&]() {
@@ -565,19 +565,19 @@ public:
     return (num_active_systems == 0);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   bool is_finished(const size_t k) {
     // return finished status for vector index k
     return (status[k] == SdcStatus::Completed || status[k] == SdcStatus::Failed);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   bool is_started(size_t k) {
     return (step_counter[k] > 0 || sdc_counter[k] > 1 ||
             node_counter[k] > 1 || newton_counter[k] > 0);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void evaluate_quadrature(WarpType thread_group, BranchIndexType& map, const int& map_size) {
     // Use high order quadrature rule to set q_node
 
@@ -605,7 +605,7 @@ public:
     WORKER_CG_SYNC(thread_group);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void initialize_step(WarpType thread_group, BranchIndexType& map, const int& map_size) {
     // If we are advancing the step, then move y_old forward
     // along with time_previous
@@ -648,13 +648,13 @@ public:
     WORKER_CG_SYNC(thread_group);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void initialize_start() {
     // Evaluate the system at y_old and set y_old and f_old for nodes 0
     SystemClass::evaluate(time_nodes, y_old, f_old, node_counter, active_systems, num_active_systems);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void initialize_all_nodes() {
     // Set old y, f to their old values at node 0.
     for (size_t i = 1; i < number_nodes; i++) {
@@ -678,7 +678,7 @@ public:
     WORKER_SYNC();
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void initialize_nodes(WarpType thread_group, BranchIndexType& map, const int& map_size) {
     // Set old y, f to their old values at node 0.
     for (size_t i = 1; i < number_nodes; i++) {
@@ -706,7 +706,7 @@ public:
     WORKER_CG_SYNC(thread_group);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void save_sdc_iteration(WarpType thread_group, BranchIndexType& map, const int& map_size) {
     for (size_t i = 1; i < number_nodes; i++) {
       VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
@@ -721,7 +721,7 @@ public:
     WORKER_CG_SYNC(thread_group);
   }
 
-  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  AMREX_GPU_DEVICE AMREX_INLINE
   void guess_new_solution(WarpType thread_group, BranchIndexType& map, const int& map_size) {
     VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
                          [&](const size_t& imap, const size_t& ieq) {
