@@ -5,7 +5,7 @@
 #include "AMReX_Box.H"
 #include <cassert>
 
-#ifdef __CUDA_ARCH__
+#ifdef AMREX_USE_CUDA
 #include "cuda_runtime.h"
 #include "AMReX_GpuUtility.H"
 using namespace amrex::Gpu::Atomic::detail;
