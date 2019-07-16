@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 
 #ifdef AMREX_USE_CUDA
 #include <cuda_profiler_api.h>
@@ -7,14 +8,11 @@
 #include "SdcIntegrator.H"
 #include "SparseGaussJordan.H"
 #include "vode_system.H"
-#include "MathVector.H"
-#include "MathVectorSet.H"
-#include "VectorStorage.H"
-#include "VectorParallelUtil.H"
 #include "WallTimer.H"
 
 #ifdef AMREX_USE_CUDA
-template<class SparseLinearSolver, class SystemClass, size_t order, size_t vector_length>
+template<typename SystemClass, size_t order, size_t vector_length,
+  template<typename, size_t> typename SparseLinearSolver>
 __global__
 void do_sdc_kernel(Real* y_initial, Real* y_final,
 		   Real start_time, Real end_time, Real start_timestep,
@@ -23,7 +21,7 @@ void do_sdc_kernel(Real* y_initial, Real* y_final,
 		   Real epsilon, size_t size, bool use_adaptive_timestep)
 {
   PARALLEL_SHARED SystemClass ode_system;
-  PARALLEL_SHARED SdcIntegrator<SparseLinearSolver, SystemClass, order, vector_length, StackCreate> sdc;
+  PARALLEL_SHARED SdcIntegrator<SparseLinearSolver<SystemClass, vector_length>, SystemClass, order, vector_length, StackCreate> sdc;
   PARALLEL_SHARED MathVectorSet<Real, SystemClass::neqs, vector_length, HeapWindow<Real, vector_length>> y_ini, y_fin;
 
   PARALLEL_REGION
@@ -104,7 +102,7 @@ int main(int argc, char* argv[]) {
   Real epsilon = std::numeric_limits<Real>::epsilon();
   bool use_adaptive_timestep = false;
 
-  const int kernel_vector_length = 32 * 32;
+  const int kernel_vector_length = 64;
   const int nBlocks = static_cast<int>(ceil(((double) num_systems)/(double) kernel_vector_length));
   const int nThreads = 128;
 
@@ -119,13 +117,13 @@ int main(int argc, char* argv[]) {
 // 						    fail_if_maximum_newton, maximum_steps,
 // 						    epsilon, num_systems, use_adaptive_timestep);
 // #else
-  do_sdc_kernel<SparseGaussJordan<VodeSystem, kernel_vector_length>,
-		VodeSystem,
-		order, kernel_vector_length><<<nBlocks, nThreads>>>(y_initial, y_final,
-                                                                    start_time, end_time, start_timestep,
-                                                                    tolerance, maximum_newton_iters,
-                                                                    fail_if_maximum_newton, maximum_steps,
-                                                                    epsilon, num_systems, use_adaptive_timestep);
+  do_sdc_kernel
+    <VodeSystem, order, kernel_vector_length, SparseGaussJordan>
+    <<<nBlocks, nThreads>>>(y_initial, y_final,
+                            start_time, end_time, start_timestep,
+                            tolerance, maximum_newton_iters,
+                            fail_if_maximum_newton, maximum_steps,
+                            epsilon, num_systems, use_adaptive_timestep);
 
   cuda_status = cudaDeviceSynchronize();
   assert(cuda_status == cudaSuccess);
