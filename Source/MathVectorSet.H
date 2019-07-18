@@ -34,11 +34,16 @@ public:
   ~MathVectorSet() {}
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void resize(size_t new_size = 0) {
+  void resize(size_t new_size = Nvec) {
     // This does not actually change the memory
     // usage but by updating stored_size we
     // can resize the loop bounds for operations.
-    stored_size = new_size;
+    SINGLE_LAMBDA([&](){
+                    stored_size = new_size;
+                    for (size_t i = 0; i < Nset; i++) {
+                      data[i].resize(stored_size);
+                    }
+                  });
   }
 
   // begin() and end() are iterators for sets
@@ -60,20 +65,26 @@ public:
   template<typename AnyMathType, typename SourceStoreClass>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator=(MathVectorSet<AnyMathType, Nset, Nvec, SourceStoreClass>& source) {
-    SINGLE_LAMBDA([&]() { resize(min(Nvec, source.stored_size)); });
+    resize(min(Nvec, source.stored_size));
+
     WORKER_SYNC();
+
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](size_t& iset, size_t& ivec)
+                      {
                         data[iset][ivec] = static_cast<MathType>(source[iset][ivec]);
                       });
+
     return *this;
   }
 
   template<typename AnyMathType, typename SourceStoreClass>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator=(MathVector<AnyMathType, Nvec, SourceStoreClass>& source) {
-    SINGLE_LAMBDA([&]() { resize(min(Nvec, source.stored_size)); });
+    resize(min(Nvec, source.stored_size));
+
     WORKER_SYNC();
+
     VECTOR_SET_LAMBDA(Nset, stored_size,
                       [&](size_t& iset, size_t& ivec) {
                         data[iset][ivec] = static_cast<MathType>(source[ivec]);
@@ -84,6 +95,10 @@ public:
   template<typename AnyMathType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator=(AnyMathType scalar) {
+    resize();
+
+    WORKER_SYNC();
+
     VECTOR_SET_LAMBDA(Nset, stored_size,
                       [&](size_t& iset, size_t& ivec) {
                         data[iset][ivec] = static_cast<MathType>(scalar);
@@ -92,7 +107,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MVS& map(MathType* const array, size_t array_comp_size, int chunk_index = -1,
+  MVS& map(MathType* const array, size_t array_comp_size, const int chunk_index = -1,
            const int src_comp = 0, const int dst_comp = 0, const int num_comp = 1) {
 
     size_t chunk_offset = 0;
@@ -151,7 +166,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MVS& save(MathType* array, size_t array_comp_size, int chunk_index = -1,
+  MVS& save(MathType* array, size_t array_comp_size, const int chunk_index = -1,
             const int src_comp = 0, const int dst_comp = 0, const int num_comp = 1) {
 
     size_t chunk_offset = 0;
