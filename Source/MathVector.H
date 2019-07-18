@@ -20,6 +20,7 @@ public:
   using StorageType::save;
   using StorageType::stored_size;
   using StorageType::operator[];
+  using StorageType::resize;
 
   using MV = MathVector<MathType, Nvec, StorageType>;
 
@@ -48,6 +49,10 @@ public:
   template<typename AnyMathType, typename AnyStorageType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator=(MathVector<AnyMathType, Nvec, AnyStorageType>& source) {
+    resize(min(Nvec, source.stored_size));
+
+    WORKER_SYNC();
+
     VECTOR_LAMBDA(stored_size,
                   [&](size_t& i) {
                     data[i] = static_cast<MathType>(source[i]);
@@ -58,7 +63,11 @@ public:
   template<typename AnyMathType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator=(AnyMathType scalar) {
-    VECTOR_LAMBDA(stored_size,
+    resize();
+
+    WORKER_SYNC();
+
+    VECTOR_LAMBDA(Nvec,
                   [&](size_t& i) {
                     data[i] = static_cast<MathType>(scalar);
                   });
