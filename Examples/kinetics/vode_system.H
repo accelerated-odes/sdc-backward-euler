@@ -59,8 +59,8 @@ public:
                       [&](const size_t& ieq, const size_t& ivec) {
                         const size_t& kvec = active_map[ivec];
 
-                        auto y = y_vec[node_map[kvec]][kvec];
-                        auto dydt = dydt_vec[node_map[kvec]][kvec];
+                        auto& y = y_vec[node_map[kvec]][kvec];
+                        auto& dydt = dydt_vec[node_map[kvec]][kvec];
 
                         switch(ieq)
                           {
@@ -99,8 +99,8 @@ public:
                       [&](const size_t& inz, const size_t& ivec) {
                         size_t& kvec = active_map[ivec];
 
-                        auto y = y_vec[node_map[kvec]][kvec];
-                        auto jac = jac_vec[kvec];
+                        auto& y = y_vec[node_map[kvec]][kvec];
+                        auto& jac = jac_vec[kvec];
 
                         switch(inz)
                           {
