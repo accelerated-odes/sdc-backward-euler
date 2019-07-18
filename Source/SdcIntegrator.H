@@ -101,7 +101,32 @@ public:
                     status = SdcStatus::StartIntegrator;
 
                     num_active_systems = initial_num_systems;
+
+                    active_systems.resize();
+                    status.resize();
+                    step_counter.resize();
+                    sdc_counter.resize();
+                    node_counter.resize();
+                    newton_counter.resize();
+                    time_previous.resize();
+                    time_step.resize();
+                    newton_error.resize();
+                    time_nodes.resize();
+                    q_node.resize();
+                    y_delta.resize();
+                    implicit_rhs.resize();
+                    j_new.resize();
+                    scratch.resize();
+
+                    for (int i = 0; i < number_nodes; i++) {
+                      f_new[i].resize();
+                      f_old[i].resize();
+                      y_new[i].resize();
+                      y_old[i].resize();
+                    }
                   });
+
+    WORKER_SYNC();
 
     VECTOR_LAMBDA(vector_length,
                   [&](const size_t& i) {
@@ -154,6 +179,19 @@ public:
                         auto ysol = y_new[node_counter[ivec]][ivec];
 
                         ysave[ieq][ivec] = ysol[ieq];
+                      });
+
+    WORKER_SYNC();
+  }
+
+  template<typename AnyStorageType>
+  AMREX_GPU_DEVICE AMREX_INLINE
+  void save_current_rhs(MathVectorSet<Real, SystemClass::neqs, vector_length, AnyStorageType> ysave) {
+    VECTOR_SET_LAMBDA(vector_length, SystemClass::neqs,
+                      [&](const size_t& ivec, const size_t& ieq) {
+                        auto rhs = f_new[node_counter[ivec]][ivec];
+
+                        ysave[ieq][ivec] = rhs[ieq];
                       });
 
     WORKER_SYNC();
