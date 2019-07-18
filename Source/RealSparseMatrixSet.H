@@ -38,6 +38,13 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   ~RealSparseMatrixSet() {}
 
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  void resize() {
+    data.resize();
+    col_index.resize();
+    row_count.resize();
+  }
+
   void print_layout() {
     std::cout << "col index: ";
     for (auto& x : col_index) {
