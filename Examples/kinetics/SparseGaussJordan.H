@@ -27,9 +27,9 @@ public:
                   [&](const size_t& k_active) {
                     const size_t& k = active_map[k_active];
 
-                    auto A = Av[k];
-                    auto b = bv[k];
-                    auto x = xv[k];
+                    auto& A = Av[k];
+                    auto& b = bv[k];
+                    auto& x = xv[k];
 
                     Real scratch_0 = 1.0/A[0];
                     Real scratch_1 = b[0]*scratch_0;
