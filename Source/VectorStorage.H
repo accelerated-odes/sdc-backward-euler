@@ -13,7 +13,7 @@ template<typename StoreType, size_t alloc_size>
 class StackCreate {
 public:
   StoreType data[alloc_size];
-  static const size_t stored_size = alloc_size;
+  size_t stored_size;
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   StackCreate() {}
@@ -25,6 +25,13 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   StoreType& operator[](AnyIndexType i) {
     return data[i];
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  void resize(size_t new_size = alloc_size) {
+    SINGLE_LAMBDA([&](){
+                    stored_size = new_size;
+                  });
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -65,6 +72,13 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   StoreType& operator[](AnyIndexType i) {
     return data[i];
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  void resize(size_t new_size = 0) {
+    SINGLE_LAMBDA([&](){
+                    stored_size = new_size;
+                  });
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -120,6 +134,13 @@ public:
     const auto array = amrex::Array4<StoreType>(data, fab_begin, fab_end);
 
     return array(idx, jdx, kdx, comp);
+  }
+
+  AMREX_GPU_HOST_DEVICE AMREX_INLINE
+  void resize(size_t new_size = 0) {
+    SINGLE_LAMBDA([&](){
+                    stored_size = new_size;
+                  });
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
