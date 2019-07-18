@@ -41,6 +41,10 @@ void do_sdc_kernel(Real* y_initial, Real* y_final,
       // integrate
       sdc.integrate();
 
+      //sdc.initialize_all_nodes();
+      // sdc.evaluate_system();
+      // sdc.save_current_rhs(y_fin);
+
       // save results to y_fin
       sdc.save_current_solution(y_fin);
     }
@@ -54,7 +58,7 @@ int main(int argc, char* argv[]) {
   cudaProfilerStart();
 #endif
 
-  size_t grid_size = 32;
+  size_t grid_size = 4;
 
   size_t num_systems = grid_size * grid_size * grid_size;
 
@@ -102,7 +106,7 @@ int main(int argc, char* argv[]) {
   Real epsilon = std::numeric_limits<Real>::epsilon();
   bool use_adaptive_timestep = false;
 
-  const int kernel_vector_length = 64;
+  const int kernel_vector_length = 8;
   const int nBlocks = static_cast<int>(ceil(((double) num_systems)/(double) kernel_vector_length));
   const int nThreads = 128;
 
