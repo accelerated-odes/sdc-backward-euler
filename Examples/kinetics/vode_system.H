@@ -21,6 +21,8 @@ public:
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void initialize() {
+    csr_col_index.resize();
+    csr_row_count.resize();
     SINGLE_LAMBDA([&]() {
                     csr_col_index[0] = 0;
                     csr_col_index[1] = 1;
