@@ -14,6 +14,9 @@ namespace cg = cooperative_groups;
 
 typedef cg::thread_block_tile<PARALLEL_SIMT_SIZE> WarpType;
 typedef MathVector<size_t, PARALLEL_SIMT_SIZE, StackCreate<size_t, PARALLEL_SIMT_SIZE>> BranchIndexType;
+#else
+typedef int WarpType;
+typedef size_t BranchIndexType;
 #endif
 
 template<size_t Nq = 0, size_t ThreadsPerGroup = 0> class TaskQueue {
@@ -99,8 +102,10 @@ public:
 #else
     VECTOR_LAMBDA(MaximumIndex,
                   [&](size_t& widx) {
-                    int this_branch_flag = selector_lambda(widx);
-                    tasks_lambda(this_branch_flag, widx);
+                    const int this_branch_flag = selector_lambda(widx);
+                    int c0 = 0;
+                    const int c1 = 0;
+                    tasks_lambda(c0, widx, c1, this_branch_flag);
                   });
 #endif
   }
