@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cassert>
 #include "AMReX_GpuQualifiers.H"
+#include "AMReX_GpuUtility.H"
 #include "AMReX_Extension.H"
 #include "VectorParallelUtil.H"
 
@@ -189,9 +190,10 @@ public:
     // calculate the max norm of elements in the vector and store in result
     SINGLE_LAMBDA([&]() { result = 0.0; });
     WORKER_SYNC();
+    // warning: not OMP threadsafe!!!
     VECTOR_LAMBDA(Nvec,
                   [&](size_t& i) {
-                    atomicMax(&result, static_cast<AnyMathType>(fabs(data[i])));
+                    amrex::Gpu::Atomic::Max(&result, static_cast<AnyMathType>(fabs(data[i])));
                   });
     WORKER_SYNC();
     return *this;
@@ -203,11 +205,12 @@ public:
     // calculate the wrms norm of this vector with respect to the weight vector
     SINGLE_LAMBDA([&]() { result = 0.0; });
     WORKER_SYNC();
+    // warning: not OMP threadsafe!!!
     VECTOR_LAMBDA(Nvec,
                   [&](size_t& k) {
-                    atomicAdd(&result,
-                              static_cast<AnyMathType2>(data[k] * data[k] *
-                                static_cast<MathType>(weights[k] * weights[k])));
+                    amrex::Gpu::Atomic::Add(&result,
+                                            static_cast<AnyMathType2>(data[k] * data[k] *
+                                            static_cast<MathType>(weights[k] * weights[k])));
                   });
     WORKER_SYNC();
     SINGLE_LAMBDA([&]() { result = sqrt(result / Nvec); });
@@ -221,9 +224,10 @@ public:
     // calculate the rms norm of this vector
     SINGLE_LAMBDA([&]() { result = 0.0; });
     WORKER_SYNC();
+    // warning: not OMP threadsafe!!!
     VECTOR_LAMBDA(Nvec,
                   [&](size_t& k) {
-                    atomicAdd(&result, static_cast<AnyMathType>(data[k] * data[k]));
+                    amrex::Gpu::Atomic::Add(&result, static_cast<AnyMathType>(data[k] * data[k]));
                   });
     WORKER_SYNC();
     SINGLE_LAMBDA([&]() { result = sqrt(result / Nvec); });
@@ -237,9 +241,10 @@ public:
     // calculate the frobenius norm of this vector
     SINGLE_LAMBDA([&]() { result = 0.0; });
     WORKER_SYNC();
+    // warning: not OMP threadsafe!!!
     VECTOR_LAMBDA(Nvec,
                   [&](size_t& k) {
-                    atomicAdd(&result, static_cast<AnyMathType>(data[k] * data[k]));
+                    amrex::Gpu::Atomic::Add(&result, static_cast<AnyMathType>(data[k] * data[k]));
                   });
     WORKER_SYNC();
     SINGLE_LAMBDA([&]() { result = sqrt(result); });
