@@ -5,6 +5,8 @@
 #include <limits>
 #include "math.h"
 #include "AMReX_REAL.H"
+#include "AMReX_GpuUtility.H"
+#include "AMReX_Print.H"
 
 #include "MathVector.H"
 #include "MathVectorSet.H"
@@ -13,10 +15,6 @@
 #include "VectorParallelUtil.H"
 #include "TaskQueue.H"
 
-#ifndef AMREX_USE_CUDA
-using std::min;
-using std::max;
-#endif
 
 enum class SdcStatus {Completed, Failed, StartIntegrator, StartTimestep,
                       StartSDCIteration, StartNode, StartNewton};
@@ -139,6 +137,15 @@ public:
     time_previous = start_time;
     time_nodes = time_previous;
 
+    // initialize y_new and y_old for all nodes. Not actually necessary, but makes valgrind happy for printing the full state...
+    for (int i = 0; i < number_nodes; i++) {
+        VECTOR_SET_LAMBDA(vector_length, SystemClass::neqs,
+                         [&](const size_t& ivec, const size_t& ieq) {
+                           y_new[i][ivec][ieq] = y_init[ieq][ivec];
+                           y_old[i][ivec][ieq] = y_init[ieq][ivec];
+                         });
+    }
+
     VECTOR_SET_LAMBDA(vector_length, SystemClass::neqs,
                       [&](const size_t& ivec, const size_t& ieq) {
                         y_new[0][ivec][ieq] = y_init[ieq][ivec];
@@ -197,6 +204,19 @@ public:
     WORKER_SYNC();
   }
 
+  template<typename AnyStorageType>
+  AMREX_GPU_DEVICE AMREX_INLINE
+  void save_current_jac(MathVectorSet<Real, SystemClass::nnz, vector_length, AnyStorageType> ysave) {
+    VECTOR_SET_LAMBDA(vector_length, SystemClass::nnz,
+                      [&](const size_t& ivec, const size_t& inz) {
+                        auto jac = j_new[ivec];
+
+                        ysave[inz][ivec] = jac[inz];
+                      });
+
+    WORKER_SYNC();
+  }
+
   AMREX_GPU_DEVICE AMREX_INLINE
   void set_jacobian_layout(SystemClass& ode_system) {
     j_new.set_csr_layout(ode_system.csr_col_index, ode_system.csr_row_count);
@@ -231,21 +251,31 @@ public:
                     std::cout << "time target: " << time_target << std::endl;
 
                     std::cout << "time nodes:" << std::endl;
-                    time_nodes[k].print();
+                    for (size_t i = 0; i < number_nodes; i++)
+                        std::cout << time_nodes[i][k] << " ";
 
                     std::cout << std::endl << "y_old:" << std::endl;
                     for (size_t i = 0; i < number_nodes; i++) {
-                      std::cout << i << ": "; y_old[i][k].print(); std::cout << std::endl;
+                      std::cout << i << ": ";
+                      for (size_t j = 0; j < SystemClass::neqs; j++)
+                        std::cout << y_old[i][k][j] << " ";
+                      std::cout << std::endl;
                     }
 
                     std::cout << "f_old:" << std::endl;
                     for (size_t i = 0; i < number_nodes; i++) {
-                      std::cout << i << ": "; f_old[i][k].print(); std::cout << std::endl;
+                      std::cout << i << ": ";
+                      for (size_t j = 0; j < SystemClass::neqs; j++)
+                        std::cout << f_old[i][k][j] << " ";
+                      std::cout << std::endl;
                     }
 
                     std::cout << "y_new:" << std::endl;
                     for (size_t i = 0; i < number_nodes; i++) {
-                      std::cout << i << ": "; y_new[i][k].print(); std::cout << std::endl;
+                      std::cout << i << ": ";
+                      for (size_t j = 0; j < SystemClass::neqs; j++)
+                        std::cout << y_new[i][k][j] << " ";
+                      std::cout << std::endl;
                     }
                   });
   }
@@ -331,10 +361,8 @@ public:
                               evaluate_quadrature(thread_group, map, map_size);
                               guess_new_solution(thread_group, map, map_size);
 
-                              VECTOR_LAMBDA_CG(thread_group, map_size,
-                                               [&](const size_t& imap) {
-                                                 const size_t k = map[imap];
-
+                              VECTOR_LAMBDA_CG(thread_group, map, map_size,
+                                               [&](const size_t& k) {
                                                  newton_error[k] = 1.0e30;
                                                });
                             }
@@ -379,9 +407,8 @@ public:
       auto branch_tasks = [&](WarpType thread_group, BranchIndexType& map,
                               const int& map_size, const int& branch) {
                             if (branch == 0) {
-                              VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
-                                                   [&](const size_t& imap, const size_t& ieq) {
-                                                     const size_t k = map[imap];
+                              VECTOR_SET_LAMBDA_CG(thread_group, map, map_size, SystemClass::neqs,
+                                                   [&](const size_t& k, const size_t& ieq) {
                                                      y_new[node_counter[k]][k][ieq] += y_delta[k][ieq];
                                                });
                             }
@@ -412,10 +439,8 @@ public:
       auto branch_tasks = [&](WarpType thread_group, BranchIndexType& map,
                               const int& map_size, const int& branch) {
                             if (branch == 0) {
-                              VECTOR_LAMBDA_CG(thread_group, map_size,
-                                               [&](const size_t& imap) {
-                                                 const size_t k = map[imap];
-
+                              VECTOR_LAMBDA_CG(thread_group, map, map_size,
+                                               [&](const size_t& k) {
                                                  scratch[k] += small;
                                                  newton_error[k] /= scratch[k];
                                                });
@@ -443,10 +468,8 @@ public:
                             const int& map_size, const int& branch) {
                           if (branch == 0) {
 
-                            VECTOR_LAMBDA_CG(thread_group, map_size,
-                                             [&](const size_t& imap) {
-                                               const size_t k = map[imap];
-
+                            VECTOR_LAMBDA_CG(thread_group, map, map_size,
+                                             [&](const size_t& k) {
                                                // Now check for Newton stopping conditions and evaluate convergence
                                                if (newton_error[k] < newton_tolerance ||
                                                    (!fail_if_maximum_newton && newton_counter[k] == maximum_newton)) {
@@ -542,28 +565,22 @@ public:
     auto branch_tasks = [&](WarpType thread_group, BranchIndexType& map,
                             const int& map_size, const int& branch) {
                           if (branch == 0) {
-                            VECTOR_LAMBDA_CG(thread_group, map_size,
-                                             [&](const size_t& imap) {
-                                               const size_t k = map[imap];
-
+                            VECTOR_LAMBDA_CG(thread_group, map, map_size,
+                                             [&](const size_t& k) {
                                                scratch[k] = (time_nodes[node_counter[k]-1][k] - time_nodes[node_counter[k]][k]);
                                              });
 
                             WORKER_CG_SYNC(thread_group);
 
-                            VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::nnz,
-                                                 [&](const size_t& imap, const size_t& inz) {
-                                                   const size_t k = map[imap];
-
+                            VECTOR_SET_LAMBDA_CG(thread_group, map, map_size, SystemClass::nnz,
+                                                 [&](const size_t& k, const size_t& inz) {
                                                    j_new[k][inz] *= scratch[k];
                                                  });
 
                             WORKER_CG_SYNC(thread_group);
 
-                            VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
-                                                 [&](const size_t& imap, const size_t& ieq) {
-                                                   const size_t k = map[imap];
-
+                            VECTOR_SET_LAMBDA_CG(thread_group, map, map_size, SystemClass::neqs,
+                                                 [&](const size_t& k, const size_t& ieq) {
                                                    j_new(ieq, ieq, k) += 1.0;
 
                                                    // Form the vectors b:
@@ -589,11 +606,12 @@ public:
 
     WORKER_SYNC();
 
+    // warning: not OMP threadsafe!!!
     VECTOR_LAMBDA(vector_length,
                   [&](const size_t& i) {
                     if (!is_finished(i)) {
-                      unsigned int isys = atomicInc(&num_active_systems,
-                                                    static_cast<unsigned int>(vector_length+1));
+                      unsigned int isys = Gpu::Atomic::Inc(&num_active_systems,
+                                                            static_cast<unsigned int>(vector_length+1));
                       active_systems[isys] = i;
                     }
                   });
@@ -621,10 +639,8 @@ public:
 
     // Right now this is hardcoded for simpson integration
     // using evenly spaced nodes.
-    VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
-                         [&](const size_t& imap, const size_t& ieq) {
-                           const size_t k = map[imap];
-
+    VECTOR_SET_LAMBDA_CG(thread_group, map, map_size, SystemClass::neqs,
+                         [&](const size_t& k, const size_t& ieq) {
                            if (node_counter[k] == 1) {
                              // integral from m = 0 to m = 1
                              q_node[k][ieq] = (time_nodes[1][k] - time_nodes[0][k])/12.0;
@@ -648,38 +664,32 @@ public:
     // If we are advancing the step, then move y_old forward
     // along with time_previous
 
-    VECTOR_LAMBDA_CG(thread_group, map_size,
-                     [&](const size_t& imap) {
-                       const size_t k = map[imap];
-
+    VECTOR_LAMBDA_CG(thread_group, map, map_size,
+                     [&](const size_t& k) {
                        time_previous[k] = time_nodes[number_nodes-1][k];
                      });
 
-    VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
-                         [&](const size_t& imap, const size_t& ieq) {
-                           const size_t k = map[imap];
-
+    VECTOR_SET_LAMBDA_CG(thread_group, map, map_size, SystemClass::neqs,
+                         [&](const size_t& k, const size_t& ieq) {
                            y_old[0][k][ieq] = y_new[number_nodes-1][k][ieq];
                            f_old[0][k][ieq] = f_new[number_nodes-1][k][ieq];
                            y_new[0][k][ieq] = y_old[0][k][ieq];
                            f_new[0][k][ieq] = f_old[0][k][ieq];
                          });
 
-    VECTOR_LAMBDA_CG(thread_group, map_size,
-                     [&](const size_t& imap) {
-                       const size_t k = map[imap];
-
+    VECTOR_LAMBDA_CG(thread_group, map, map_size,
+                     [&](const size_t& k) {
                        Real tnow = time_nodes[number_nodes-1][k];
                        if (use_adaptive_timestep) {
                          // Set new timestep for 4th order error control
                          // Uses adaptive timestepping from Garcia, Eqs. 3.30, 3.31
                          Real dt_est = time_step[k] * pow(fabs(newton_tolerance/newton_error[k]), 0.2);
-                         time_step[k] = min(min(max(dt_control_S1 * dt_est,
+                         time_step[k] = amrex::min(amrex::min(amrex::max(dt_control_S1 * dt_est,
                                                     time_step[k]/dt_control_S2),
                                                 time_step[k] * dt_control_S2),
                                             time_target - tnow);
                        } else {
-                         time_step[k] = min(time_step[k], time_target - tnow);
+                         time_step[k] = amrex::min(time_step[k], time_target - tnow);
                        }
                      });
 
@@ -720,10 +730,8 @@ public:
   void initialize_nodes(WarpType thread_group, BranchIndexType& map, const int& map_size) {
     // Set old y, f to their old values at node 0.
     for (size_t i = 1; i < number_nodes; i++) {
-      VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
-                           [&](const size_t& imap, const size_t& ieq) {
-                             const size_t k = map[imap];
-
+      VECTOR_SET_LAMBDA_CG(thread_group, map, map_size, SystemClass::neqs,
+                           [&](const size_t& k, const size_t& ieq) {
                              y_old[i][k][ieq] = y_old[0][k][ieq];
                              f_old[i][k][ieq] = f_old[0][k][ieq];
                            });
@@ -731,10 +739,8 @@ public:
 
     // Set evenly spaced node times
     for (size_t i = 0; i < number_nodes; i++) {
-      VECTOR_LAMBDA_CG(thread_group, map_size,
-                       [&](const size_t& imap) {
-                         const size_t k = map[imap];
-
+      VECTOR_LAMBDA_CG(thread_group, map, map_size,
+                       [&](const size_t& k) {
                          time_nodes[i][k] = time_step[k];
                          time_nodes[i][k] *= static_cast<Real>(i)/(number_nodes-1);
                          time_nodes[i][k] += time_previous[k];
@@ -747,10 +753,8 @@ public:
   AMREX_GPU_DEVICE AMREX_INLINE
   void save_sdc_iteration(WarpType thread_group, BranchIndexType& map, const int& map_size) {
     for (size_t i = 1; i < number_nodes; i++) {
-      VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
-                           [&](const size_t& imap, const size_t& ieq) {
-                             const size_t k = map[imap];
-
+      VECTOR_SET_LAMBDA_CG(thread_group, map, map_size, SystemClass::neqs,
+                           [&](const size_t& k, const size_t& ieq) {
                              y_old[i][k][ieq] = y_new[i][k][ieq];
                              f_old[i][k][ieq] = f_new[i][k][ieq];
                            });
@@ -761,10 +765,8 @@ public:
 
   AMREX_GPU_DEVICE AMREX_INLINE
   void guess_new_solution(WarpType thread_group, BranchIndexType& map, const int& map_size) {
-    VECTOR_SET_LAMBDA_CG(thread_group, map_size, SystemClass::neqs,
-                         [&](const size_t& imap, const size_t& ieq) {
-                           const size_t k = map[imap];
-
+    VECTOR_SET_LAMBDA_CG(thread_group, map, map_size, SystemClass::neqs,
+                         [&](const size_t& k, const size_t& ieq) {
                            if (sdc_counter[k] > 1)
                              y_new[node_counter[k]][k][ieq] = y_old[node_counter[k]][k][ieq];
                            else
