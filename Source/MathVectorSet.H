@@ -107,17 +107,14 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MVS& map(MathType* const array, size_t array_comp_size, const int chunk_index = -1,
+  MVS& map(MathType* const array, size_t array_comp_size, const int chunk_index = 0,
            const int src_comp = 0, const int dst_comp = 0, const int num_comp = 1) {
 
     size_t chunk_offset = 0;
 #ifdef AMREX_USE_CUDA
     // Each threadblock gets a chunk of each component of the array
     // by default indexed by the threadblock index, unless chunk_index is passed
-    if (chunk_index < 0)
-      chunk_offset = Nvec * blockIdx.x;
-    else
-      chunk_offset = Nvec * static_cast<size_t>(chunk_index);
+    chunk_offset = Nvec * blockIdx.x;
 #else
     // If we're not using CUDA, then we need the chunk index to play the role
     // of the threadblock index above.
@@ -166,17 +163,14 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MVS& save(MathType* array, size_t array_comp_size, const int chunk_index = -1,
+  MVS& save(MathType* array, size_t array_comp_size, const int chunk_index = 0,
             const int src_comp = 0, const int dst_comp = 0, const int num_comp = 1) {
 
     size_t chunk_offset = 0;
 #ifdef AMREX_USE_CUDA
     // Each threadblock saves a chunk of each component of the array
     // by default indexed by the threadblock index, unless chunk_index is passed
-    if (chunk_index < 0)
-      chunk_offset = Nvec * blockIdx.x;
-    else
-      chunk_offset = Nvec * static_cast<size_t>(chunk_index);
+    chunk_offset = Nvec * blockIdx.x;
 #else
     // If we're not using CUDA, then we need the chunk index to play the role
     // of the threadblock index above.
