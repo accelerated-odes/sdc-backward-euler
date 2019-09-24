@@ -56,7 +56,7 @@ public:
 
 };
 
-template<class StoreType, size_t null_param>
+template<class StoreType, size_t null_param = 0>
 class HeapWindow {
 public:
   StoreType* data;
@@ -93,7 +93,7 @@ public:
   void save(StoreType* array, size_t array_max_size = 0) {}
 };
 
-template<class StoreType, size_t null_param>
+template<class StoreType, size_t null_param = 0>
 class FabWindow {
 public:
   StoreType* data;
