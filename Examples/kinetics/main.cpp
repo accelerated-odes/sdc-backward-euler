@@ -5,15 +5,18 @@
 #include <cuda_profiler_api.h>
 #endif
 
+#include "AMReX_Print.H"
+
 #include "SdcIntegrator.H"
 #include "SparseGaussJordan.H"
 #include "vode_system.H"
 #include "WallTimer.H"
 
-#ifdef AMREX_USE_CUDA
 template<typename SystemClass, size_t order, size_t vector_length,
   template<typename, size_t> typename SparseLinearSolver>
+#ifdef AMREX_USE_CUDA
 __global__
+#endif
 void do_sdc_kernel(Real* y_initial, Real* y_final,
 		   Real start_time, Real end_time, Real start_timestep,
                    Real tolerance, size_t maximum_newton_iters,
@@ -23,12 +26,11 @@ void do_sdc_kernel(Real* y_initial, Real* y_final,
   PARALLEL_SHARED SystemClass ode_system;
   PARALLEL_SHARED SdcIntegrator<SparseLinearSolver<SystemClass, vector_length>, SystemClass, order, vector_length, StackCreate> sdc;
   PARALLEL_SHARED MathVectorSet<Real, SystemClass::neqs, vector_length, HeapWindow<Real, vector_length>> y_ini, y_fin;
-
   PARALLEL_REGION
     {
       // map y_ini and y_fin to y_initial and y_final
-      y_ini.map(y_initial, size, -1, 0, 0, SystemClass::neqs);
-      y_fin.map(y_final, size, -1, 0, 0, SystemClass::neqs);
+      y_ini.map(y_initial, size, 0, 0, 0, SystemClass::neqs);
+      y_fin.map(y_final, size, 0, 0, 0, SystemClass::neqs);
 
       // initialize system and integrator
       ode_system.initialize();
@@ -41,15 +43,10 @@ void do_sdc_kernel(Real* y_initial, Real* y_final,
       // integrate
       sdc.integrate();
 
-      //sdc.initialize_all_nodes();
-      // sdc.evaluate_system();
-      // sdc.save_current_rhs(y_fin);
-
       // save results to y_fin
       sdc.save_current_solution(y_fin);
     }
 }
-#endif
 
 
 int main(int argc, char* argv[]) {
@@ -58,9 +55,9 @@ int main(int argc, char* argv[]) {
   cudaProfilerStart();
 #endif
 
-  size_t grid_size = 4;
+  const size_t grid_size = 4;
 
-  size_t num_systems = grid_size * grid_size * grid_size;
+  const size_t num_systems = grid_size * grid_size * grid_size;
 
   const size_t order = 4;
 
@@ -106,7 +103,12 @@ int main(int argc, char* argv[]) {
   Real epsilon = std::numeric_limits<Real>::epsilon();
   bool use_adaptive_timestep = false;
 
+#ifdef AMREX_USE_CUDA
   const int kernel_vector_length = 8;
+#else
+  const int kernel_vector_length = num_systems;
+#endif
+
   const int nBlocks = static_cast<int>(ceil(((double) num_systems)/(double) kernel_vector_length));
   const int nThreads = 128;
 
@@ -114,24 +116,21 @@ int main(int argc, char* argv[]) {
 
   timer.start_wallclock();
 
-// #ifndef AMREX_USE_CUDA
-//   do_sdc_host<SparseGaussJordan, VodeSystem, order>(y_initial, y_final,
-// 						    start_time, end_time, start_timestep,
-// 						    tolerance, maximum_newton_iters,
-// 						    fail_if_maximum_newton, maximum_steps,
-// 						    epsilon, num_systems, use_adaptive_timestep);
-// #else
   do_sdc_kernel
     <VodeSystem, order, kernel_vector_length, SparseGaussJordan>
-    <<<nBlocks, nThreads>>>(y_initial, y_final,
-                            start_time, end_time, start_timestep,
-                            tolerance, maximum_newton_iters,
-                            fail_if_maximum_newton, maximum_steps,
-                            epsilon, num_systems, use_adaptive_timestep);
+#ifdef AMREX_USE_CUDA
+    <<<nBlocks, nThreads>>>
+#endif
+    (y_initial, y_final,
+     start_time, end_time, start_timestep,
+     tolerance, maximum_newton_iters,
+     fail_if_maximum_newton, maximum_steps,
+     epsilon, num_systems, use_adaptive_timestep);
 
+#ifdef AMREX_USE_CUDA
   cuda_status = cudaDeviceSynchronize();
   assert(cuda_status == cudaSuccess);
-// #endif
+#endif
 
   timer.stop_wallclock();
 
