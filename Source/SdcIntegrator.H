@@ -193,12 +193,45 @@ public:
 
   template<typename AnyStorageType>
   AMREX_GPU_DEVICE AMREX_INLINE
+  void save_current_scratch(MathVectorSet<Real, SystemClass::neqs, vector_length, AnyStorageType> ysave) {
+    VECTOR_SET_LAMBDA(vector_length, SystemClass::neqs,
+                      [&](const size_t& ivec, const size_t& ieq) {
+                        ysave[ieq][ivec] = scratch[ivec];
+                      });
+
+    WORKER_SYNC();
+  }
+
+  template<typename AnyStorageType>
+  AMREX_GPU_DEVICE AMREX_INLINE
+  void save_current_status(MathVectorSet<Real, SystemClass::neqs, vector_length, AnyStorageType> ysave) {
+    VECTOR_SET_LAMBDA(vector_length, SystemClass::neqs,
+                      [&](const size_t& ivec, const size_t& ieq) {
+                        ysave[ieq][ivec] = status[ivec];
+                      });
+
+    WORKER_SYNC();
+  }
+
+  template<typename AnyStorageType>
+  AMREX_GPU_DEVICE AMREX_INLINE
   void save_current_rhs(MathVectorSet<Real, SystemClass::neqs, vector_length, AnyStorageType> ysave) {
     VECTOR_SET_LAMBDA(vector_length, SystemClass::neqs,
                       [&](const size_t& ivec, const size_t& ieq) {
                         auto rhs = f_new[node_counter[ivec]][ivec];
 
                         ysave[ieq][ivec] = rhs[ieq];
+                      });
+
+    WORKER_SYNC();
+  }
+
+  template<typename AnyStorageType>
+  AMREX_GPU_DEVICE AMREX_INLINE
+  void save_current_implicit_rhs(MathVectorSet<Real, SystemClass::neqs, vector_length, AnyStorageType> ysave) {
+    VECTOR_SET_LAMBDA(vector_length, SystemClass::neqs,
+                      [&](const size_t& ivec, const size_t& ieq) {
+                        ysave[ieq][ivec] = implicit_rhs[ivec][ieq];
                       });
 
     WORKER_SYNC();
