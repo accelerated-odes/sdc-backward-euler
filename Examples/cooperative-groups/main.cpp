@@ -60,19 +60,19 @@ void doit(Real* y_initial, Real* y_final, size_t array_comp_size,
                               MathVector<size_t, PARALLEL_SIMT_SIZE, StackCreate<size_t, PARALLEL_SIMT_SIZE>>& simt_indices,
                               const int& queue_fill_size, const int& this_branch_flag) {
                             if (this_branch_flag == 0)
-                              VECTOR_SET_LAMBDA_CG(thread_group, queue_fill_size, vector_length,
-                                                   [&](const size_t& iset, const size_t& ivec) {
-                                                     x_initial[simt_indices[iset]][ivec] = 10.0;
+                              VECTOR_SET_LAMBDA_CG(thread_group, simt_indices, queue_fill_size, vector_length,
+                                                   [&](const size_t& isimt, const size_t& ivec) {
+                                                     x_initial[isimt][ivec] = 10.0;
                                                    });
                             else if (this_branch_flag == 1)
-                              VECTOR_SET_LAMBDA_CG(thread_group, queue_fill_size, vector_length,
-                                                   [&](const size_t& iset, const size_t& ivec) {
-                                                     x_initial[simt_indices[iset]][ivec] = 20.0;
+                              VECTOR_SET_LAMBDA_CG(thread_group, simt_indices, queue_fill_size, vector_length,
+                                                   [&](const size_t& isimt, const size_t& ivec) {
+                                                     x_initial[isimt][ivec] = 20.0;
                                                    });
                             else if (this_branch_flag == 2)
-                              VECTOR_SET_LAMBDA_CG(thread_group, queue_fill_size, vector_length,
-                                                   [&](const size_t& iset, const size_t& ivec) {
-                                                     x_initial[simt_indices[iset]][ivec] = 30.0;
+                              VECTOR_SET_LAMBDA_CG(thread_group, simt_indices, queue_fill_size, vector_length,
+                                                   [&](const size_t& isimt, const size_t& ivec) {
+                                                     x_initial[isimt][ivec] = 30.0;
                                                    });
                           };
 
