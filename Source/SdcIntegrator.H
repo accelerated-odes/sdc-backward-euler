@@ -19,8 +19,10 @@
 enum class SdcStatus {Completed, Failed, StartIntegrator, StartTimestep,
                       StartSDCIteration, StartNode, StartNewton};
 
-template<typename EnumClass> auto enum_class_integer(EnumClass const value) ->
-  typename std::underlying_type<EnumClass>::type {
+template<typename EnumClass>
+AMREX_GPU_DEVICE AMREX_INLINE
+auto enum_class_integer(EnumClass const value) ->
+typename std::underlying_type<EnumClass>::type {
   return static_cast<typename std::underlying_type<EnumClass>::type>(value);
 };
 
@@ -96,8 +98,6 @@ public:
                     maximum_steps = max_steps;
                     small = epsilon;
 
-                    status = SdcStatus::StartIntegrator;
-
                     num_active_systems = initial_num_systems;
 
                     active_systems.resize();
@@ -125,6 +125,8 @@ public:
                   });
 
     WORKER_SYNC();
+
+    status = SdcStatus::StartIntegrator;
 
     VECTOR_LAMBDA(vector_length,
                   [&](const size_t& i) {
@@ -207,7 +209,7 @@ public:
   void save_current_status(MathVectorSet<Real, SystemClass::neqs, vector_length, AnyStorageType> ysave) {
     VECTOR_SET_LAMBDA(vector_length, SystemClass::neqs,
                       [&](const size_t& ivec, const size_t& ieq) {
-                        ysave[ieq][ivec] = status[ivec];
+                        ysave[ieq][ivec] = static_cast<amrex::Real>(enum_class_integer(status[ivec]));
                       });
 
     WORKER_SYNC();
