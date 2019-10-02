@@ -13,17 +13,17 @@
 namespace cg = cooperative_groups;
 
 typedef cg::thread_block_tile<PARALLEL_SIMT_SIZE> WarpType;
-typedef MathVector<size_t, PARALLEL_SIMT_SIZE, StackCreate<size_t, PARALLEL_SIMT_SIZE>> BranchIndexType;
+typedef MathVector<long, PARALLEL_SIMT_SIZE, StackCreate<long, PARALLEL_SIMT_SIZE>> BranchIndexType;
 #else
 typedef int WarpType;
-typedef size_t BranchIndexType;
+typedef long BranchIndexType;
 #endif
 
-template<size_t Nq = 0, size_t ThreadsPerGroup = 0> class TaskQueue {
+template<long Nq = 0, long ThreadsPerGroup = 0> class TaskQueue {
 
 #ifdef __CUDA_ARCH__
-  MathVectorSet<size_t, Nq, PARALLEL_SIMT_SIZE,
-                StackCreate<size_t, PARALLEL_SIMT_SIZE>> simt_branch_indices;
+  MathVectorSet<long, Nq, PARALLEL_SIMT_SIZE,
+                StackCreate<long, PARALLEL_SIMT_SIZE>> simt_branch_indices;
   MathVector<unsigned int, Nq, StackCreate<unsigned int, Nq>> map_branch_indices;
 #endif
 
@@ -35,13 +35,11 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   ~TaskQueue() {}
 
-  template<size_t NumberActiveQueues, int MaximumIndex = -1, typename AnyLambdaSelector, typename AnyLambdaSelectorFinished, typename AnyLambdaTask>
+  template<long NumberActiveQueues, int NumberOfTasks = -1, typename AnyLambdaSelector, typename AnyLambdaSelectorFinished, typename AnyLambdaTask>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   void execute(AnyLambdaSelector selector_lambda, AnyLambdaSelectorFinished selector_finished_lambda, AnyLambdaTask tasks_lambda) {
 #ifdef __CUDA_ARCH__
     auto thread_block = cg::this_thread_block();
-
-    map_branch_indices = 1;
 
     thread_block.sync();
 
@@ -50,58 +48,58 @@ public:
     // figure out which branch to take with this group of threads
     int this_branch_flag = thread_block.thread_rank() / thread_group.size();
 
-    int working_index = thread_group.thread_rank();
-
-    auto check_loc = [&](int widx)->int {
-                       if (selector_finished_lambda(widx) ||
-                           (MaximumIndex >= 0 && widx >= MaximumIndex)) return -2;
-
-                       if (selector_lambda(widx) == this_branch_flag) {
-                         if (map_branch_indices[this_branch_flag] == 0) return widx;
-                         unsigned int imap = atomicInc(&map_branch_indices[this_branch_flag], PARALLEL_SIMT_SIZE+1);
-                         imap--;
-                         simt_branch_indices[this_branch_flag][imap] = widx;
-                       }
-
-                       // not finished filling the work queue and not at end of vector
-                       return -1;
-                     };
-
     if (this_branch_flag < NumberActiveQueues) {
-      while(true) {
-        int next_index = check_loc(working_index);
-        if (next_index == -1)
-          working_index += thread_group.size();
-        else {
-          // sync
-          thread_group.sync();
 
-          // get the number of entries in the queue
-          int queue_fill_size = map_branch_indices[this_branch_flag] - 1;
-          if (queue_fill_size < 0) queue_fill_size = PARALLEL_SIMT_SIZE;
+    /* if (thread_group.thread_rank() == 0) */
+    /*     printf("in task queue, looking for branch flag = %d\n", this_branch_flag); */
 
-          if (queue_fill_size > 0) {
-            // do work for queue_fill_size entries
-            tasks_lambda(thread_group, simt_branch_indices[this_branch_flag], queue_fill_size, this_branch_flag);
+    if (thread_group.thread_rank() == 0) {
+        map_branch_indices[this_branch_flag] = 0;
+    }
 
-            // reset the queue
-            if (thread_group.thread_rank() == 0)
-              map_branch_indices[this_branch_flag] = 1;
+    for (int widx = 0; widx <= NumberOfTasks; widx++) {
+        bool queue_run_ready = (map_branch_indices[this_branch_flag] == PARALLEL_SIMT_SIZE ||
+                                (map_branch_indices[this_branch_flag] > 0 && widx == NumberOfTasks));
+        /* if (thread_group.thread_rank() == 0) printf("%d: checking widx = %d\n", this_branch_flag, widx); */
+        if (queue_run_ready) {
+            __threadfence();
 
-            // sync threads in this group
+            /* if (thread_group.thread_rank() == 0) { */
+            /*     printf("%d: Running tasks ...\n", this_branch_flag); */
+            /*     for (int i = 0; i < map_branch_indices[this_branch_flag]; i++) { */
+            /*         printf("%d: simt_branch_indices[%d][%d] = %d\n", this_branch_flag, this_branch_flag, i, simt_branch_indices[this_branch_flag][i]); */
+            /*     } */
+            /* } */
+
+            tasks_lambda(thread_group, simt_branch_indices,
+                         map_branch_indices[this_branch_flag], this_branch_flag);
+
             thread_group.sync();
-          } else {
-            // we didn't have work to do so break
-            break;
-          }
+
+            if (thread_group.thread_rank() == 0)
+                map_branch_indices[this_branch_flag] = 0;
         }
-      }
+        bool queue_add_ready = widx < NumberOfTasks;
+        if (thread_group.thread_rank() == 0 && queue_add_ready) {
+            /* if (thread_group.thread_rank() == 0) printf("%d: Checking if we can add index %d\n", this_branch_flag, widx); */
+            if (selector_lambda(widx) == this_branch_flag) {
+                /* if (thread_group.thread_rank() == 0) printf("%d: Adding index %d\n", this_branch_flag, widx); */
+                simt_branch_indices[this_branch_flag][map_branch_indices[this_branch_flag]] = widx;
+                map_branch_indices[this_branch_flag]++;
+                /* if (thread_group.thread_rank() == 0) printf("%d: map_branch_indices[%d] = %d\n", this_branch_flag, this_branch_flag, map_branch_indices[this_branch_flag]); */
+            }
+        }
+    }
+    } else {
+        /* if (thread_group.thread_rank() == 0) printf("Skipping branch number %d\n", this_branch_flag); */
     }
 
     thread_block.sync();
+
+    /* if (thread_block.thread_rank() == 0) printf("Done with task queue execution.\n"); */
 #else
-    VECTOR_LAMBDA(MaximumIndex,
-                  [&](size_t& widx) {
+    VECTOR_LAMBDA(NumberOfTasks,
+                  [&](long& widx) {
                     const int this_branch_flag = selector_lambda(widx);
                     int c0 = 0;
                     const int c1 = 0;
