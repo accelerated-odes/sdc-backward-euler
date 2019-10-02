@@ -9,11 +9,11 @@ using std::min;
 using std::max;
 #endif
 
-template<typename StoreType, size_t alloc_size>
+template<typename StoreType, long alloc_size>
 class StackCreate {
 public:
   StoreType data[alloc_size];
-  size_t stored_size;
+  long stored_size;
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   StackCreate() {}
@@ -28,39 +28,39 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void resize(size_t new_size = alloc_size) {
+  void resize(long new_size = alloc_size) {
     SINGLE_LAMBDA([&](){
                     stored_size = new_size;
                   });
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void map(StoreType* array, size_t array_max_size) {
-    size_t map_length = min(array_max_size, alloc_size);
+  void map(StoreType* array, long array_max_size) {
+    long map_length = min(array_max_size, alloc_size);
 
     VECTOR_LAMBDA(map_length,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] = array[i];
                   });
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void save(StoreType* array, size_t size_to_save = alloc_size) {
-    size_t save_length = min(size_to_save, alloc_size);
+  void save(StoreType* array, long size_to_save = alloc_size) {
+    long save_length = min(size_to_save, alloc_size);
 
     VECTOR_LAMBDA(save_length,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     array[i] = data[i];
                   });
   }
 
 };
 
-template<class StoreType, size_t null_param = 0>
+template<class StoreType, long null_param = 0>
 class HeapWindow {
 public:
   StoreType* data;
-  size_t stored_size;
+  long stored_size;
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   HeapWindow() {}
@@ -75,14 +75,14 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void resize(size_t new_size = 0) {
+  void resize(long new_size = 0) {
     SINGLE_LAMBDA([&](){
                     stored_size = new_size;
                   });
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void map(StoreType* array, size_t array_max_size) {
+  void map(StoreType* array, long array_max_size) {
     SINGLE_LAMBDA([&](){
                     stored_size = array_max_size;
                     data = array;
@@ -90,10 +90,10 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void save(StoreType* array, size_t array_max_size = 0) {}
+  void save(StoreType* array, long array_max_size = 0) {}
 };
 
-template<class StoreType, size_t null_param = 0>
+template<class StoreType, long null_param = 0>
 class FabWindow {
 public:
   StoreType* data;
@@ -105,7 +105,7 @@ public:
 
   amrex::Dim3 tile_dim; // dimensions of our tile of the Fab
 
-  size_t stored_size;
+  long stored_size;
 
   int comp;    // this is which component of the Fab we map to
 
@@ -137,7 +137,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void resize(size_t new_size = 0) {
+  void resize(long new_size = 0) {
     SINGLE_LAMBDA([&](){
                     stored_size = new_size;
                   });
@@ -173,11 +173,11 @@ public:
 
     tile_dim.x = tile_size.x; tile_dim.y = tile_size.y; tile_dim.z = tile_size.z;
 
-    stored_size = static_cast<size_t>(tile_dim.x * tile_dim.y * tile_dim.z);
+    stored_size = static_cast<long>(tile_dim.x * tile_dim.y * tile_dim.z);
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void save(StoreType* array, size_t array_max_size = 0) {
+  void save(StoreType* array, long array_max_size = 0) {
     // We don't actually do anything here because we operate
     // on Fab data in place but we provide this stub
     // to support the same API as other storage types.

@@ -12,7 +12,7 @@ using std::min;
 using std::max;
 #endif
 
-template<class MathType, size_t Nvec, class StorageType>
+template<class MathType, long Nvec, class StorageType>
 class MathVector : public StorageType {
 public:
 
@@ -55,7 +55,7 @@ public:
     WORKER_SYNC();
 
     VECTOR_LAMBDA(stored_size,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] = static_cast<MathType>(source[i]);
                   });
     return *this;
@@ -69,7 +69,7 @@ public:
     WORKER_SYNC();
 
     VECTOR_LAMBDA(Nvec,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] = static_cast<MathType>(scalar);
                   });
     return *this;
@@ -79,7 +79,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator+=(MathVector<AnyMathType, Nvec, AnyStorageType>& y) {
     VECTOR_LAMBDA(stored_size,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] += static_cast<MathType>(y[i]);
                   });
     return *this;
@@ -89,7 +89,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator+=(AnyMathType scalar) {
     VECTOR_LAMBDA(stored_size,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] += static_cast<MathType>(scalar);
                   });
     return *this;
@@ -99,7 +99,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator-=(MathVector<AnyMathType, Nvec, AnyStorageType>& y) {
     VECTOR_LAMBDA(stored_size,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] -= static_cast<MathType>(y[i]);
                   });
     return *this;
@@ -109,7 +109,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator-=(AnyMathType scalar) {
     VECTOR_LAMBDA(stored_size,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] -= static_cast<MathType>(scalar);
                   });
     return *this;
@@ -119,7 +119,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator*=(MathVector<AnyMathType, Nvec, AnyStorageType>& y) {
     VECTOR_LAMBDA(stored_size,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] *= static_cast<MathType>(y[i]);
                   });
     return *this;
@@ -129,7 +129,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator*=(AnyMathType scalar) {
     VECTOR_LAMBDA(stored_size,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] *= static_cast<MathType>(scalar);
                   });
     return *this;
@@ -139,7 +139,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator/=(MathVector<AnyMathType, Nvec, AnyStorageType>& y) {
     VECTOR_LAMBDA(stored_size,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] /= static_cast<MathType>(y[i]);
                   });
     return *this;
@@ -149,7 +149,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& operator/=(AnyMathType scalar) {
     VECTOR_LAMBDA(stored_size,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] /= static_cast<MathType>(scalar);
                   });
     return *this;
@@ -158,7 +158,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MV& negate() {
     VECTOR_LAMBDA(stored_size,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] = -data[i];
                   });
     return *this;
@@ -168,7 +168,7 @@ public:
   MV& abs() {
     // apply absolute value to all elements of the vector
     VECTOR_LAMBDA(Nvec,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] = fabs(data[i]);
                   });
     return *this;
@@ -178,7 +178,7 @@ public:
   MV& inv() {
     // invert all the elements of the vector
     VECTOR_LAMBDA(Nvec,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     data[i] = 1.0 / data[i];
                   });
     return *this;
@@ -192,7 +192,7 @@ public:
     WORKER_SYNC();
     // warning: not OMP threadsafe!!!
     VECTOR_LAMBDA(Nvec,
-                  [&](size_t& i) {
+                  [&](long& i) {
                     amrex::Gpu::Atomic::Max(&result, static_cast<AnyMathType>(fabs(data[i])));
                   });
     WORKER_SYNC();
@@ -207,7 +207,7 @@ public:
     WORKER_SYNC();
     // warning: not OMP threadsafe!!!
     VECTOR_LAMBDA(Nvec,
-                  [&](size_t& k) {
+                  [&](long& k) {
                     amrex::Gpu::Atomic::Add(&result,
                                             static_cast<AnyMathType2>(data[k] * data[k] *
                                             static_cast<MathType>(weights[k] * weights[k])));
@@ -226,7 +226,7 @@ public:
     WORKER_SYNC();
     // warning: not OMP threadsafe!!!
     VECTOR_LAMBDA(Nvec,
-                  [&](size_t& k) {
+                  [&](long& k) {
                     amrex::Gpu::Atomic::Add(&result, static_cast<AnyMathType>(data[k] * data[k]));
                   });
     WORKER_SYNC();
@@ -243,7 +243,7 @@ public:
     WORKER_SYNC();
     // warning: not OMP threadsafe!!!
     VECTOR_LAMBDA(Nvec,
-                  [&](size_t& k) {
+                  [&](long& k) {
                     amrex::Gpu::Atomic::Add(&result, static_cast<AnyMathType>(data[k] * data[k]));
                   });
     WORKER_SYNC();
@@ -259,7 +259,7 @@ public:
     SINGLE_LAMBDA([&]() { result = static_cast<AnyMathType>(data[0]); });
     WORKER_SYNC();
     VECTOR_LAMBDA(Nvec,
-                  [&](size_t& k) {
+                  [&](long& k) {
                     atomicMin(&result, static_cast<AnyMathType>(data[k]));
                   });
     WORKER_SYNC();

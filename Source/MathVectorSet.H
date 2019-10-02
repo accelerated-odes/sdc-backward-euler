@@ -15,7 +15,7 @@ using std::min;
 using std::max;
 #endif
 
-template<typename MathType, size_t Nset, size_t Nvec, typename StorageType>
+template<typename MathType, long Nset, long Nvec, typename StorageType>
 class MathVectorSet {
 public:
 
@@ -25,7 +25,7 @@ public:
 
   amrex::Dim3 lo, hi;
 
-  size_t stored_size;
+  long stored_size;
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MathVectorSet() {}
@@ -34,13 +34,13 @@ public:
   ~MathVectorSet() {}
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  void resize(size_t new_size = Nvec) {
+  void resize(long new_size = Nvec) {
     // This does not actually change the memory
     // usage but by updating stored_size we
     // can resize the loop bounds for operations.
     SINGLE_LAMBDA([&](){
                     stored_size = new_size;
-                    for (size_t i = 0; i < Nset; i++) {
+                    for (long i = 0; i < Nset; i++) {
                       data[i].resize(stored_size);
                     }
                   });
@@ -70,7 +70,7 @@ public:
     WORKER_SYNC();
 
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec)
+                      [&](long& iset, long& ivec)
                       {
                         data[iset][ivec] = static_cast<MathType>(source[iset][ivec]);
                       });
@@ -86,7 +86,7 @@ public:
     WORKER_SYNC();
 
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] = static_cast<MathType>(source[ivec]);
                       });
     return *this;
@@ -100,17 +100,17 @@ public:
     WORKER_SYNC();
 
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] = static_cast<MathType>(scalar);
                       });
     return *this;
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MVS& map(MathType* const array, size_t array_comp_size, const int chunk_index = 0,
+  MVS& map(MathType* const array, long array_comp_size, const int chunk_index = 0,
            const int src_comp = 0, const int dst_comp = 0, const int num_comp = 1) {
 
-    size_t chunk_offset = 0;
+    long chunk_offset = 0;
 #ifdef AMREX_USE_CUDA
     // Each threadblock gets a chunk of each component of the array
     // by default indexed by the threadblock index, unless chunk_index is passed
@@ -119,13 +119,13 @@ public:
     // If we're not using CUDA, then we need the chunk index to play the role
     // of the threadblock index above.
     assert(chunk_index >= 0);
-    chunk_offset = Nvec * static_cast<size_t>(chunk_index);
+    chunk_offset = Nvec * static_cast<long>(chunk_index);
 #endif
 
-    size_t chunk_size = array_comp_size - chunk_offset;
+    long chunk_size = array_comp_size - chunk_offset;
 
-    for (size_t i = 0; i < num_comp; i++) {
-      size_t component_chunk_offset = chunk_offset + (i + src_comp) * array_comp_size;
+    for (long i = 0; i < num_comp; i++) {
+      long component_chunk_offset = chunk_offset + (i + src_comp) * array_comp_size;
       data[i + dst_comp].map(&array[component_chunk_offset], chunk_size);
     }
 
@@ -149,24 +149,24 @@ public:
 
     // lo, hi should be the lo, hi for the Fab.
 
-    for (size_t i = 0; i < num_comp; i++) {
+    for (long i = 0; i < num_comp; i++) {
       data[i + dst_comp].map(fabptr, lo, hi,
                              tile_size, tile_idx,
                              i + src_comp);
     }
 
     SINGLE_LAMBDA([&](){
-                    stored_size = min(Nvec, static_cast<size_t>(tile_size.x * tile_size.y * tile_size.z));
+                    stored_size = min(Nvec, static_cast<long>(tile_size.x * tile_size.y * tile_size.z));
                   });
 
     return *this;
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MVS& save(MathType* array, size_t array_comp_size, const int chunk_index = 0,
+  MVS& save(MathType* array, long array_comp_size, const int chunk_index = 0,
             const int src_comp = 0, const int dst_comp = 0, const int num_comp = 1) {
 
-    size_t chunk_offset = 0;
+    long chunk_offset = 0;
 #ifdef AMREX_USE_CUDA
     // Each threadblock saves a chunk of each component of the array
     // by default indexed by the threadblock index, unless chunk_index is passed
@@ -175,11 +175,11 @@ public:
     // If we're not using CUDA, then we need the chunk index to play the role
     // of the threadblock index above.
     assert(chunk_index >= 0);
-    chunk_offset = Nvec * static_cast<size_t>(chunk_index);
+    chunk_offset = Nvec * static_cast<long>(chunk_index);
 #endif
 
-    for (size_t i = 0; i < num_comp; i++) {
-      size_t component_chunk_offset = chunk_offset + (i + src_comp) * array_comp_size;
+    for (long i = 0; i < num_comp; i++) {
+      long component_chunk_offset = chunk_offset + (i + src_comp) * array_comp_size;
       data[i + dst_comp].save(&array[component_chunk_offset]);
     }
 
@@ -195,9 +195,9 @@ public:
   template<typename AnyMathType, typename AnyStorageType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator+=(MathVectorSet<AnyMathType, Nset, Nvec, AnyStorageType>& y) {
-    size_t looplen = min(stored_size, y.stored_size);
+    long looplen = min(stored_size, y.stored_size);
     VECTOR_SET_LAMBDA(Nset, looplen,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] += static_cast<MathType>(y[iset][ivec]);
                       });
     return *this;
@@ -206,9 +206,9 @@ public:
   template<typename AnyMathType, typename AnyStorageType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator+=(MathVector<AnyMathType, Nvec, AnyStorageType>& y) {
-    size_t looplen = min(stored_size, y.stored_size);
+    long looplen = min(stored_size, y.stored_size);
     VECTOR_SET_LAMBDA(Nset, looplen,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] += static_cast<MathType>(y[ivec]);
                       });
     return *this;
@@ -218,7 +218,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator+=(AnyMathType scalar) {
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] += static_cast<MathType>(scalar);
                       });
     return *this;
@@ -227,9 +227,9 @@ public:
   template<typename AnyMathType, typename AnyStorageType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator-=(MathVectorSet<AnyMathType, Nset, Nvec, AnyStorageType>& y) {
-    size_t looplen = min(stored_size, y.stored_size);
+    long looplen = min(stored_size, y.stored_size);
     VECTOR_SET_LAMBDA(Nset, looplen,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] -= static_cast<MathType>(y[iset][ivec]);
                       });
     return *this;
@@ -238,9 +238,9 @@ public:
   template<typename AnyMathType, typename AnyStorageType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator-=(MathVector<AnyMathType, Nvec, AnyStorageType>& y) {
-    size_t looplen = min(stored_size, y.stored_size);
+    long looplen = min(stored_size, y.stored_size);
     VECTOR_SET_LAMBDA(Nset, looplen,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] -= static_cast<MathType>(y[ivec]);
                       });
     return *this;
@@ -250,7 +250,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator-=(AnyMathType scalar) {
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] -= static_cast<MathType>(scalar);
                       });
     return *this;
@@ -259,9 +259,9 @@ public:
   template<typename AnyMathType, typename AnyStorageType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator*=(MathVectorSet<AnyMathType, Nset, Nvec, AnyStorageType>& y) {
-    size_t looplen = min(stored_size, y.stored_size);
+    long looplen = min(stored_size, y.stored_size);
     VECTOR_SET_LAMBDA(Nset, looplen,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] *= static_cast<MathType>(y[iset][ivec]);
                       });
     return *this;
@@ -270,9 +270,9 @@ public:
   template<typename AnyMathType, typename AnyStorageType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator*=(MathVector<AnyMathType, Nvec, AnyStorageType>& y) {
-    size_t looplen = min(stored_size, y.stored_size);
+    long looplen = min(stored_size, y.stored_size);
     VECTOR_SET_LAMBDA(Nset, looplen,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] *= static_cast<MathType>(y[ivec]);
                       });
     return *this;
@@ -282,7 +282,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator*=(AnyMathType scalar) {
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] *= static_cast<MathType>(scalar);
                       });
     return *this;
@@ -291,9 +291,9 @@ public:
   template<typename AnyMathType, typename AnyStorageType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator/=(MathVectorSet<AnyMathType, Nset, Nvec, AnyStorageType>& y) {
-    size_t looplen = min(stored_size, y.stored_size);
+    long looplen = min(stored_size, y.stored_size);
     VECTOR_SET_LAMBDA(Nset, looplen,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] /= static_cast<MathType>(y[iset][ivec]);
                       });
     return *this;
@@ -302,9 +302,9 @@ public:
   template<typename AnyMathType, typename AnyStorageType>
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator/=(MathVector<AnyMathType, Nvec, AnyStorageType>& y) {
-    size_t looplen = min(stored_size, y.stored_size);
+    long looplen = min(stored_size, y.stored_size);
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] /= static_cast<MathType>(y[ivec]);
                       });
     return *this;
@@ -314,7 +314,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& operator/=(AnyMathType scalar) {
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] /= static_cast<MathType>(scalar);
                       });
     return *this;
@@ -323,7 +323,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   MVS& negate() {
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         data[iset][ivec] = -data[iset][ivec];
                       });
     return *this;
@@ -336,7 +336,7 @@ public:
       data[comp].abs();
     else
       VECTOR_SET_LAMBDA(Nset, stored_size,
-                        [&](size_t& iset,size_t& ivec) {
+                        [&](long& iset,long& ivec) {
                           data[iset].abs(ivec);
                         });
     return *this;
@@ -349,7 +349,7 @@ public:
       data[comp].inv();
     else
       VECTOR_SET_LAMBDA(Nset, stored_size,
-                        [&](size_t& iset,size_t& ivec) {
+                        [&](long& iset,long& ivec) {
                           data[iset].inv(ivec);
                         });
     return *this;
@@ -363,9 +363,9 @@ public:
     // calculate the dot product with y with respect to components and store it in result
     result = 0.0;
     WORKER_SYNC();
-    size_t looplen = min(stored_size, y.stored_size);
+    long looplen = min(stored_size, y.stored_size);
     VECTOR_SET_LAMBDA(Nset, looplen,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         atomicAdd(&result[ivec], static_cast<AnyMathType2>(data[iset][ivec] * static_cast<MathType>(y[iset][ivec])));
                       });
     WORKER_SYNC();
@@ -379,7 +379,7 @@ public:
     result = 0.0;
     WORKER_SYNC();
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         atomicMax(&result[ivec], fabs(static_cast<AnyMathType>(data[iset][ivec])));
                       });
     WORKER_SYNC();
@@ -394,9 +394,9 @@ public:
     // calculate the component-wise wrms norm with respect to weights and store it in result
     result = 0.0;
     WORKER_SYNC();
-    size_t looplen = min(stored_size, weights.stored_size);
+    long looplen = min(stored_size, weights.stored_size);
     VECTOR_SET_LAMBDA(Nset, looplen,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         atomicAdd(&result[ivec],
                           static_cast<AnyMathType2>(data[iset][ivec] *
                                                     data[iset][ivec] *
@@ -405,7 +405,7 @@ public:
                       });
     WORKER_SYNC();
     VECTOR_LAMBDA(looplen,
-                  [&](size_t& k) {
+                  [&](long& k) {
                     result[k] = sqrt(result[k] / Nset);
                   });
     WORKER_SYNC();
@@ -419,13 +419,13 @@ public:
     result = 0.0;
     WORKER_SYNC();
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         atomicAdd(&result[ivec], static_cast<AnyMathType>(data[iset][ivec] *
                                                                           data[iset][ivec]));
                       });
     WORKER_SYNC();
     VECTOR_LAMBDA(stored_size,
-                  [&](size_t& k) {
+                  [&](long& k) {
                     result[k] = sqrt(result[k] / Nset);
                   });
     WORKER_SYNC();
@@ -439,13 +439,13 @@ public:
     result = 0.0;
     WORKER_SYNC();
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         atomicAdd(&result[ivec], static_cast<AnyMathType>(data[iset][ivec] *
                                                                           data[iset][ivec]));
                       });
     WORKER_SYNC();
     VECTOR_LAMBDA(stored_size,
-                  [&](size_t& k) {
+                  [&](long& k) {
                     result[k] = sqrt(result[k]);
                   });
     WORKER_SYNC();
@@ -457,12 +457,12 @@ public:
   MVS& minimum(MathVector<AnyMathType, Nvec, AnyStorageType>& result) {
     // calculate the min with respect to components and store it in result
     VECTOR_LAMBDA(stored_size,
-                  [&](size_t& k) {
+                  [&](long& k) {
                     result[k] = static_cast<AnyMathType>(data[0][k]);
                   });
     WORKER_SYNC();
     VECTOR_SET_LAMBDA(Nset, stored_size,
-                      [&](size_t& iset, size_t& ivec) {
+                      [&](long& iset, long& ivec) {
                         atomicMin(&result[ivec], static_cast<AnyMathType>(data[iset][ivec]));
                       });
     WORKER_SYNC();

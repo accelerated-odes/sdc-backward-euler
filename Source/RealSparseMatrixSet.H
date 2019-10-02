@@ -13,7 +13,7 @@
 
 using namespace amrex;
 
-template<size_t N, size_t vector_length, size_t NNZ, template<typename, size_t> typename InternalStorageType>
+template<long N, long vector_length, long NNZ, template<typename, long> typename InternalStorageType>
 class RealSparseMatrixSet {
 
   MathVector<int, NNZ, InternalStorageType<int, NNZ>> col_index;
@@ -66,7 +66,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  MathVector<Real, NNZ, InternalStorageType<Real, NNZ>>& operator[](size_t i) {
+  MathVector<Real, NNZ, InternalStorageType<Real, NNZ>>& operator[](long i) {
     return data[i];
   }
 
@@ -74,7 +74,7 @@ public:
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
   ThisType& operator*=(MathVector<AnyMathType, vector_length, AnyStorageType>& source) {
     VECTOR_SET_LAMBDA(NNZ, vector_length,
-                      [&](const size_t& iset, const size_t& ivec) {
+                      [&](const long& iset, const long& ivec) {
                         data[ivec][iset] *= source[ivec];
                       });
     return *this;
@@ -92,7 +92,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  int lookup_csr_location(size_t irow, size_t icol) {
+  int lookup_csr_location(long irow, long icol) {
     int num_in_row = row_count[irow+1] - row_count[irow];
     int row_start_loc = row_count[irow];
     int row_end_loc = row_start_loc + num_in_row - 1;
@@ -108,7 +108,7 @@ public:
   }
 
   AMREX_GPU_HOST_DEVICE AMREX_INLINE
-  Real& operator()(size_t i, size_t j, size_t k) {
+  Real& operator()(long i, long j, long k) {
     // i: row index [0, N-1]
     // j: col index [0, N-1]
     int csr_loc = lookup_csr_location(i, j);
