@@ -15,7 +15,7 @@ using namespace amrex::Gpu::Atomic::detail;
 #include <omp.h>
 #endif
 
-void get_tiling(const amrex::Box& bx, const size_t grid_size_per_block,
+void get_tiling(const amrex::Box& bx, const long grid_size_per_block,
                 amrex::Dim3& kernel_tile_size, amrex::Dim3& kernel_num_blocks) {
 
   auto box_length = bx.length();
@@ -31,7 +31,7 @@ void get_tiling(const amrex::Box& bx, const size_t grid_size_per_block,
   int total_blocks = 1;
 
   auto tilelen = [&]()
-                 { return static_cast<size_t>(kernel_tile_size.x * kernel_tile_size.y * kernel_tile_size.z); };
+                 { return static_cast<long>(kernel_tile_size.x * kernel_tile_size.y * kernel_tile_size.z); };
 
   while(true) {
     if ((kernel_tile_size.z % 2) == 0 &&
@@ -68,8 +68,8 @@ void get_tiling(const amrex::Box& bx, const size_t grid_size_per_block,
 // Get the number of cells in a Box defined by
 // lo and hi Dim3 objects.
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
-size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
-  return static_cast<size_t>(  (hi.x - lo.x + 1)
+long box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
+  return static_cast<long>(  (hi.x - lo.x + 1)
 #if AMREX_SPACEDIM >= 2
                              * (hi.y - lo.y + 1)
 #endif
@@ -106,14 +106,14 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 // We then get the component (iset) and vector (ivec) indexes
 // from the flat index for each thread.
 #define VECTOR_SET_LAMBDA(Nset, Nvec, lambda) ({        \
-    size_t _v_nstrides = Nset * Nvec / blockDim.x;         \
+    long _v_nstrides = Nset * Nvec / blockDim.x;         \
     if ((Nset * Nvec) % blockDim.x > 0.0) _v_nstrides++;   \
                                                         \
-    for (size_t _v_n = 0; _v_n < _v_nstrides; _v_n++) {             \
-      size_t _v_idx = threadIdx.x + _v_n * blockDim.x;        \
+    for (long _v_n = 0; _v_n < _v_nstrides; _v_n++) {             \
+      long _v_idx = threadIdx.x + _v_n * blockDim.x;        \
       if (_v_idx < Nset * Nvec) {                          \
-        size_t _v_iset = _v_idx / Nvec;                       \
-        size_t _v_ivec = _v_idx % Nvec;                       \
+        long _v_iset = _v_idx / Nvec;                       \
+        long _v_ivec = _v_idx % Nvec;                       \
         lambda(_v_iset, _v_ivec);                             \
       }                                                 \
     }                                                   \
@@ -123,40 +123,40 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 // operation across an index space of size N
 // by striding through that index space with a block of threads.
 #define VECTOR_LAMBDA(N, lambda) ({                     \
-    size_t _v_nstrides = N / blockDim.x;                   \
+    long _v_nstrides = N / blockDim.x;                   \
     if (N % blockDim.x > 0.0) _v_nstrides++;               \
                                                         \
-    for (size_t _v_n = 0; _v_n < _v_nstrides; _v_n++) {             \
-      size_t _v_idx = threadIdx.x + _v_n * blockDim.x;        \
+    for (long _v_n = 0; _v_n < _v_nstrides; _v_n++) {             \
+      long _v_idx = threadIdx.x + _v_n * blockDim.x;        \
       if (_v_idx < N) {                                    \
         lambda(_v_idx);                                    \
       }                                                 \
     }                                                   \
   })
 
-#define VECTOR_SET_LAMBDA_CG(group, map, Nset, Nvec, lambda) ({        \
-    size_t _v_nstrides = static_cast<size_t>(Nset * Nvec) / group.size(); \
-    if ((Nset * Nvec) % group.size() > 0.0) _v_nstrides++;                \
-                                                                       \
-    for (size_t _v_n = 0; _v_n < _v_nstrides; _v_n++) {                            \
-      const size_t _v_idx = group.thread_rank() + _v_n * group.size();       \
-      if (_v_idx < Nset * Nvec) {                                         \
-        const size_t _v_iset = _v_idx / Nvec;                                \
-        const size_t _v_ivec = _v_idx % Nvec;                                \
-        const size_t _v_map_iset = map[_v_iset];                             \
-        lambda(_v_map_iset, _v_ivec);                                        \
-      }                                                                \
-    }                                                                  \
+#define VECTOR_SET_LAMBDA_CG(group, map, Nmap, Nlen, lambda) ({        \
+    int _v_ntotal = Nmap * Nlen;  \
+    int _v_nstride = _v_ntotal/group.size(); \
+    if (_v_ntotal % static_cast<int>(group.size()) > 0) _v_nstride++; \
+    for (int _v_istride = 0; _v_istride < _v_nstride; _v_istride++) { \
+        int _v_idx = group.thread_rank() + _v_istride * group.size(); \
+        if (_v_idx < _v_ntotal) { \
+            int _v_imap = _v_idx / Nlen;                                \
+            int _v_ielement = _v_idx % Nlen;                                \
+            const long _v_map_idx = map[_v_imap];                             \
+            lambda(_v_map_idx, _v_ielement);                                        \
+        } \
+    } \
   })
 
 #define VECTOR_LAMBDA_CG(group, map, N, lambda) ({         \
-    size_t _v_nstrides = static_cast<size_t>(N)/group.size(); \
+    long _v_nstrides = static_cast<long>(N)/group.size(); \
     if (N % group.size() > 0) _v_nstrides++;                  \
                                                            \
-    for (size_t _v_n = 0; _v_n < _v_nstrides; _v_n++) {                \
-      const size_t _v_idx = group.thread_rank() + _v_n * group.size(); \
+    for (long _v_n = 0; _v_n < _v_nstrides; _v_n++) {                \
+      const long _v_idx = group.thread_rank() + _v_n * group.size(); \
       if (_v_idx < N) {                                       \
-        const size_t _v_map_idx = map[_v_idx];                   \
+        const long _v_map_idx = map[_v_idx];                   \
         lambda(_v_map_idx);                                   \
       }                                                    \
     }                                                      \
@@ -198,8 +198,8 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 
 #define VECTOR_SET_LAMBDA(Nset, Nvec, lambda) ({        \
     PRAGMA_EXPRESSION(omp for schedule(static) collapse(2))   \
-    for (size_t _v_iset = 0; _v_iset < Nset; _v_iset++) {        \
-      for (size_t _v_ivec = 0; _v_ivec < Nvec; _v_ivec++) {      \
+    for (long _v_iset = 0; _v_iset < Nset; _v_iset++) {        \
+      for (long _v_ivec = 0; _v_ivec < Nvec; _v_ivec++) {      \
         lambda(_v_iset, _v_ivec);                             \
       }                                                 \
     }                                                   \
@@ -207,12 +207,12 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 
 #define VECTOR_LAMBDA(N, lambda) ({                     \
     PRAGMA_EXPRESSION(omp for schedule(static))         \
-    for (size_t _v_i = 0; _v_i < N; _v_i++)                      \
+    for (long _v_i = 0; _v_i < N; _v_i++)                      \
       lambda(_v_i);                                        \
   })
 
 #define VECTOR_SET_LAMBDA_CG(group, map, Nset, Nvec, lambda) ({        \
-    for (size_t _v_ivec = 0; _v_ivec < Nvec; _v_ivec++) {        \
+    for (long _v_ivec = 0; _v_ivec < Nvec; _v_ivec++) {        \
       lambda(map, _v_ivec);                                \
     }                                                   \
   })
@@ -250,20 +250,20 @@ size_t box_number_cells(const amrex::Dim3& lo, const amrex::Dim3& hi) {
 #define PARALLEL_SIMT_SIZE 1
 
 #define VECTOR_SET_LAMBDA(num_set, num_vec, lambda) ({  \
-    for (size_t _v_iset = 0; _v_iset < num_set; _v_iset++) {     \
-      for (size_t _v_ivec = 0; _v_ivec < num_vec; _v_ivec++) {   \
+    for (long _v_iset = 0; _v_iset < num_set; _v_iset++) {     \
+      for (long _v_ivec = 0; _v_ivec < num_vec; _v_ivec++) {   \
         lambda(_v_iset, _v_ivec);                             \
       }                                                 \
     }                                                   \
   })
 
 #define VECTOR_LAMBDA(N, lambda) ({                     \
-    for (size_t _v_i = 0; _v_i < N; _v_i++)             \
+    for (long _v_i = 0; _v_i < N; _v_i++)             \
       lambda(_v_i);                                     \
   })
 
 #define VECTOR_SET_LAMBDA_CG(group, map, Nset, Nvec, lambda) ({        \
-    for (size_t _v_ivec = 0; _v_ivec < Nvec; _v_ivec++) {        \
+    for (long _v_ivec = 0; _v_ivec < Nvec; _v_ivec++) {        \
       lambda(map, _v_ivec);                                \
     }                                                   \
   })
