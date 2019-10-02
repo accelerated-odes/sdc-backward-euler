@@ -16,21 +16,21 @@
 using namespace amrex;
 
 #ifdef AMREX_USE_CUDA
-template<int threads_per_block, size_t vector_set_length, size_t vector_length, class StorageType>
+template<int threads_per_block, long vector_set_length, long vector_length, class StorageType>
 __global__
 #else
-template<size_t vector_set_length, size_t vector_length, class StorageType>
+template<long vector_set_length, long vector_length, class StorageType>
 #endif
-void doit(Real* y_initial, Real* y_final, size_t array_comp_size,
+void doit(Real* y_initial, Real* y_final, long array_comp_size,
           int array_chunk_index = -1)
 {
   PARALLEL_SHARED MathVectorSet<Real, vector_set_length, vector_length, StorageType> x_initial;
   PARALLEL_SHARED MathVectorSet<Real, vector_set_length, vector_length, StorageType> x_final;
 
-  const size_t number_branches = 3;
+  const long number_branches = 3;
 
 #ifdef AMREX_USE_CUDA
-  const size_t threads_per_group = PARALLEL_SIMT_SIZE;
+  const long threads_per_group = PARALLEL_SIMT_SIZE;
   PARALLEL_SHARED TaskQueue<number_branches, threads_per_group> task_queue;
 #else
   PARALLEL_SHARED TaskQueue<number_branches> task_queue;
@@ -57,28 +57,48 @@ void doit(Real* y_initial, Real* y_final, size_t array_comp_size,
                                       };
 
       auto branch_tasks = [&](cg::thread_block_tile<threads_per_group> thread_group,
-                              MathVector<size_t, PARALLEL_SIMT_SIZE, StackCreate<size_t, PARALLEL_SIMT_SIZE>>& simt_indices,
+                              MathVectorSet<long, number_branches, PARALLEL_SIMT_SIZE, StackCreate<long, PARALLEL_SIMT_SIZE>> & simt_indices,
                               const int& queue_fill_size, const int& this_branch_flag) {
-                            if (this_branch_flag == 0)
-                              VECTOR_SET_LAMBDA_CG(thread_group, simt_indices, queue_fill_size, vector_length,
-                                                   [&](const size_t& isimt, const size_t& ivec) {
-                                                     x_initial[isimt][ivec] = 10.0;
-                                                   });
-                            else if (this_branch_flag == 1)
-                              VECTOR_SET_LAMBDA_CG(thread_group, simt_indices, queue_fill_size, vector_length,
-                                                   [&](const size_t& isimt, const size_t& ivec) {
-                                                     x_initial[isimt][ivec] = 20.0;
-                                                   });
-                            else if (this_branch_flag == 2)
-                              VECTOR_SET_LAMBDA_CG(thread_group, simt_indices, queue_fill_size, vector_length,
-                                                   [&](const size_t& isimt, const size_t& ivec) {
-                                                     x_initial[isimt][ivec] = 30.0;
-                                                   });
+                            if (this_branch_flag == 0) {
+                                if (thread_group.thread_rank() == 0) {
+                                    printf("Branch %d, starting VECTOR_SET_LAMBDA_CG with map_size = %d\n", this_branch_flag, queue_fill_size);
+                                    for (int i = 0; i < queue_fill_size; i++)
+                                        printf("simt_indices[%d][%d] = %d\n", this_branch_flag, i, simt_indices[this_branch_flag][i]);
+                                }
+                                thread_group.sync();
+
+                                VECTOR_SET_LAMBDA_CG(thread_group, simt_indices[this_branch_flag], queue_fill_size, vector_length,
+                                        [&](int isimt, int iset) {
+                                        x_final[isimt][iset] += 10.0 * x_initial[isimt][iset];
+                                        });
+                            } else if (this_branch_flag == 1) {
+                                if (thread_group.thread_rank() == 0) {
+                                    printf("Branch %d, starting VECTOR_SET_LAMBDA_CG with map_size = %d\n", this_branch_flag, queue_fill_size);
+                                    for (int i = 0; i < queue_fill_size; i++)
+                                        printf("simt_indices[%d][%d] = %d\n", this_branch_flag, i, simt_indices[this_branch_flag][i]);
+                                }
+                                thread_group.sync();
+
+                                VECTOR_SET_LAMBDA_CG(thread_group, simt_indices[this_branch_flag], queue_fill_size, vector_length,
+                                        [&](int isimt, int iset) {
+                                        x_final[isimt][iset] += 20.0 * x_initial[isimt][iset];
+                                        });
+                            } else if (this_branch_flag == 2) {
+                                if (thread_group.thread_rank() == 0) {
+                                    printf("Branch %d, starting VECTOR_SET_LAMBDA_CG with map_size = %d\n", this_branch_flag, queue_fill_size);
+                                    for (int i = 0; i < queue_fill_size; i++)
+                                        printf("simt_indices[%d][%d] = %d\n", this_branch_flag, i, simt_indices[this_branch_flag][i]);
+                                }
+                                thread_group.sync();
+
+                                VECTOR_SET_LAMBDA_CG(thread_group, simt_indices[this_branch_flag], queue_fill_size, vector_length,
+                                        [&](int isimt, int iset) {
+                                        x_final[isimt][iset] += 30.0 * x_initial[isimt][iset];
+                                        });
+                            }
                           };
 
-      task_queue.execute<number_branches, vector_length>(branch_selector, branch_selector_finished, branch_tasks);
-
-      x_final = x_initial;
+      task_queue.execute<number_branches, vector_set_length>(branch_selector, branch_selector_finished, branch_tasks);
 
       x_final.save(y_final, array_comp_size, array_chunk_index,
                    0, 0, vector_set_length);
@@ -91,7 +111,7 @@ int main(int argc, char* argv[]) {
   cudaProfilerStart();
 #endif
 
-  const int N = 96*2;
+  const int N = 96;
 
   WallTimer timer;
 
@@ -117,9 +137,15 @@ int main(int argc, char* argv[]) {
 
   // initialize systems
   Real correct_ysum = 0.0;
-  for (size_t i = 0; i < N; i++) {
-    y_initial[i] = i/64 + 1.0;
-    correct_ysum += y_initial[i] * 10.0;
+  for (long i = 0; i < N; i++) {
+      if (i < N/3)
+        y_initial[i] = 1.0;
+      else if (i < 2*N/3)
+        y_initial[i] = 2.0;
+      else
+        y_initial[i] = 3.0;
+    y_final[i] = 0.0;
+    correct_ysum += y_final[i] + 10.0 * y_initial[i] * y_initial[i];
   }
 
 #ifdef AMREX_USE_CUDA
@@ -140,8 +166,8 @@ int main(int argc, char* argv[]) {
   // so we need ceil(N/M) threadblocks
   const int nBlocks = static_cast<int>(ceil(((double) N)/((double) nVectorSize * nVectorSets)));
 
-  //const size_t size_per_component = static_cast<size_t>(N/nVectorSets);
-  const size_t size_per_component = N/3;
+  //const long size_per_component = static_cast<long>(N/nVectorSets);
+  const long size_per_component = N/3;
 
   timer.start_wallclock();
 
@@ -171,13 +197,13 @@ int main(int argc, char* argv[]) {
 #endif
 
   //  std::cout << std::endl << "Final Vector -------------------" << std::endl;
-  for (size_t i = 0; i < N; i++) {
+  for (long i = 0; i < N; i++) {
     std::cout << std::setprecision(std::numeric_limits<Real>::digits10 + 1);
     std::cout << "y_initial[" << i << "] = " << y_initial[i] << std::endl;
   }
 
   Real ysum = 0.0;
-  for (size_t i = 0; i < N; i++) {
+  for (long i = 0; i < N; i++) {
     std::cout << std::setprecision(std::numeric_limits<Real>::digits10 + 1);
     std::cout << "y_final[" << i << "] = " << y_final[i] << std::endl;
     ysum += y_final[i];
