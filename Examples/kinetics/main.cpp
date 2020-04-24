@@ -41,10 +41,21 @@ void do_sdc_kernel(Real* y_initial, Real* y_final,
                      epsilon, use_adaptive_timestep);
 
       // integrate
-      sdc.integrate();
+      /* sdc.integrate(); */
+      sdc.prepare();
+      /* sdc.solve(); */
+      /* sdc.update_solution(); */
 
       // save results to y_fin
-      sdc.save_current_solution(y_fin);
+      /* sdc.save_current_solution(y_fin); */
+      /* sdc.save_current_ydelta(y_fin); */
+      /* sdc.save_current_rhs(y_fin); */
+      /* sdc.save_current_implicit_rhs(y_fin); */
+      sdc.save_current_jac(y_fin,0);
+      /* sdc.save_current_scratch(y_fin); */
+      /* sdc.save_current_node_counter(y_fin); */
+      /* sdc.save_current_node_times(y_fin); */
+      /* sdc.save_current_status(y_fin); */
     }
 }
 
@@ -104,7 +115,7 @@ int main(int argc, char* argv[]) {
   bool use_adaptive_timestep = false;
 
 #ifdef AMREX_USE_CUDA
-  const int kernel_vector_length = 8;
+  const int kernel_vector_length = 4;
 #else
   const int kernel_vector_length = num_systems;
 #endif

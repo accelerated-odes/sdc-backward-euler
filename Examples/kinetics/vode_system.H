@@ -97,6 +97,11 @@ public:
 
     evaluate<Nvec>(time_vec, y_vec, dydt_vec, node_map, active_map, num_active);
 
+    /* VECTOR_SET_LAMBDA(nnz, Nvec, */
+    /*         [&](const size_t& inz, const size_t& ivec) { */
+    /*             jac_vec[ivec][inz] = 0.0; */
+    /*             }); */
+
     VECTOR_SET_LAMBDA(nnz, static_cast<size_t>(num_active),
                       [&](const size_t& inz, const size_t& ivec) {
                         size_t& kvec = active_map[ivec];
